@@ -96,8 +96,9 @@ export function AuthModal({ mode, setMode, next, onClose }: { mode: AuthMode; se
         setUser(me.user);
         toast("С возвращением!", "success");
         onClose();
-        if (next && next.startsWith("/")) router.push(next);
-        router.refresh();
+        // Full navigation so protected areas (e.g. /admin) are re-checked with the new session cookie
+        if (next && next.startsWith("/") && !next.startsWith("//")) window.location.assign(next);
+        else router.refresh();
       } else {
         const r = await api<{ devLink?: string }>("/api/auth/forgot", { body: { email: form.email } });
         setDone({ kind: "forgot", devLink: r.devLink });
@@ -183,6 +184,7 @@ export function AuthModal({ mode, setMode, next, onClose }: { mode: AuthMode; se
               <AnimatePresence mode="wait">
                 <motion.form key={mode} onSubmit={submit} noValidate initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.18 }} className="space-y-3.5">
                   <h3 className="text-2xl font-extrabold">{mode === "register" ? "Добро пожаловать в " + config.siteName : mode === "login" ? "Вход в аккаунт" : "Восстановление пароля"}</h3>
+                  {mode === "login" && next?.startsWith("/admin") && <p className="rounded-xl bg-brand-50 p-3 text-sm font-medium text-brand">Войдите с аккаунтом администратора, чтобы открыть админ-панель.</p>}
                   {mode === "forgot" && <p className="text-sm text-ink-500">Укажите email, и мы пришлём ссылку для смены пароля.</p>}
                   {mode === "register" && !config.registration.enabled && <p className="rounded-xl bg-ink-100 p-3 text-sm">Регистрация временно закрыта.</p>}
                   {mode === "register" && (

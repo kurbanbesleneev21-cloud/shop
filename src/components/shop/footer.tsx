@@ -48,7 +48,10 @@ export async function Footer() {
             {c.address && <li className="flex gap-3"><MapPin size={18} className="shrink-0 text-brand-300" />{c.address}</li>}
             {c.workHours && <li className="flex gap-3"><Clock size={18} className="shrink-0 text-brand-300" />{c.workHours}</li>}
           </ul>
-          <Link href="/seller/register" className="btn mt-6 h-10 border border-white/20 text-sm text-white hover:border-brand hover:bg-brand">Продавать на маркетплейсе</Link>
+          <div className="mt-6 flex flex-wrap gap-2">
+            <Link href="/seller/register" className="btn h-10 border border-white/20 text-sm text-white hover:border-brand hover:bg-brand">Продавать на маркетплейсе</Link>
+            <Link href="/admin" className="btn h-10 border border-white/20 text-sm text-white hover:border-brand hover:bg-brand">Вход для администратора</Link>
+          </div>
         </div>
       </div>
       <div className="border-t border-white/10">

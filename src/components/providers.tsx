@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Info, X } from "lucide-react";
 import type { PublicConfig } from "@/lib/public-config";
 import { api } from "@/lib/client-api";
@@ -140,16 +140,6 @@ export function Providers({ children, config, initialUser, initialFavorites }: {
     return () => clearTimeout(t);
   }, [user, config.registration]);
 
-  // ?auth=login deep link (e.g. from middleware redirects)
-  useEffect(() => {
-    const sp = new URLSearchParams(window.location.search);
-    const a = sp.get("auth");
-    if (a === "login" || a === "register") {
-      setAuthMode(a);
-      setAuthNext(sp.get("next") || undefined);
-    }
-  }, []);
-
   const refreshUser = useCallback(async () => {
     const r = await api<{ user: SessionUser }>("/api/auth/me");
     setUser(r.user);
@@ -258,6 +248,7 @@ export function Providers({ children, config, initialUser, initialFavorites }: {
     <AppContext.Provider value={value}>
       <MotionConfig reducedMotion={config.animations ? "user" : "always"}>
         {children}
+        <Suspense fallback={null}><AuthDeepLink onOpen={(m, n) => { setAuthMode(m); setAuthNext(n); }} /></Suspense>
         <AnimatePresence>{authMode && <AuthModal mode={authMode} setMode={setAuthMode} next={authNext} onClose={() => setAuthMode(null)} />}</AnimatePresence>
         <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[100] flex flex-col items-center gap-2 px-4 md:bottom-6 md:items-end md:pr-6">
           <AnimatePresence initial={false}>
@@ -294,4 +285,16 @@ export function Providers({ children, config, initialUser, initialFavorites }: {
       </MotionConfig>
     </AppContext.Provider>
   );
+}
+
+/** Opens the login/registration modal for ?auth=login|register links (also after client-side redirects, e.g. from /admin). */
+function AuthDeepLink({ onOpen }: { onOpen: (mode: AuthMode, next?: string) => void }) {
+  const sp = useSearchParams();
+  const auth = sp.get("auth");
+  const next = sp.get("next") || undefined;
+  useEffect(() => {
+    if (auth === "login" || auth === "register") onOpen(auth, next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth, next]);
+  return null;
 }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronRight, Heart, LayoutGrid, LogOut, Package, Search, ShieldCheck, ShoppingCart, Store, User, X, Home, Loader2 } from "lucide-react";
 import { useApp, useHydrated } from "../providers";
@@ -19,6 +20,12 @@ export function Header({ categories, links, topBar }: { categories: NavCategory[
   const hydrated = useHydrated();
   const cartCount = hydrated ? rawCount : 0;
   const [menuOpen, setMenuOpen] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
+  const [menuTop, setMenuTop] = useState(0);
+  const openMenu = (v: boolean) => {
+    if (v && headerRef.current) setMenuTop(Math.max(0, headerRef.current.getBoundingClientRect().bottom));
+    setMenuOpen(v);
+  };
   const [profileOpen, setProfileOpen] = useState(false);
   const pathname = usePathname();
   const dark = config.headerStyle === "dark";
@@ -35,10 +42,10 @@ export function Header({ categories, links, topBar }: { categories: NavCategory[
           {topBar.text} <ChevronRight size={14} className="inline -mt-0.5" />
         </Link>
       )}
-      <header className={cn("sticky top-0 z-50 border-b", dark ? "border-ink-700 bg-ink text-white" : "border-ink-100 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85")}>
+      <header ref={headerRef} className={cn("sticky top-0 z-50 border-b", dark ? "border-ink-700 bg-ink text-white" : "border-ink-100 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85")}>
         <div className="container-tm flex flex-wrap items-center gap-x-2 gap-y-2 py-2.5 sm:gap-x-4 md:h-[72px] md:flex-nowrap md:py-0">
           <Logo dark={dark} />
-          <button onClick={() => setMenuOpen((v) => !v)} className={cn("btn hidden h-11 shrink-0 md:inline-flex", menuOpen ? "bg-brand-600 text-white" : "bg-brand text-white hover:bg-brand-600")} aria-expanded={menuOpen}>
+          <button onClick={() => openMenu(!menuOpen)} className={cn("btn hidden h-11 shrink-0 md:inline-flex", menuOpen ? "bg-brand-600 text-white" : "bg-brand text-white hover:bg-brand-600")} aria-expanded={menuOpen}>
             <span className="relative h-4 w-4">
               <span className={cn("absolute left-0 top-0.5 h-0.5 w-4 rounded bg-white transition", menuOpen && "top-[7px] rotate-45")} />
               <span className={cn("absolute left-0 top-[7px] h-0.5 w-4 rounded bg-white transition", menuOpen && "opacity-0")} />
@@ -47,7 +54,16 @@ export function Header({ categories, links, topBar }: { categories: NavCategory[
             Каталог
           </button>
           <SearchBox dark={dark} />
+          {user?.role === "ADMIN" && (
+            <Link href="/admin" className="btn-dark btn-sm ml-auto shrink-0 md:hidden"><ShieldCheck size={16} />Админка</Link>
+          )}
           <nav className="ml-auto hidden items-center gap-1 md:flex">
+            {user?.role === "ADMIN" && (
+              <Link href="/admin" className={cn("flex h-14 min-w-[64px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-[11px] font-semibold text-brand transition", dark ? "hover:bg-white/10" : "hover:bg-brand-50")}>
+                <ShieldCheck size={22} />
+                <span>Админка</span>
+              </Link>
+            )}
             <IconLink href="/favorites" label="Избранное" count={favorites.size} dark={dark}><Heart size={22} /></IconLink>
             <IconLink href="/cart" label="Корзина" count={cartCount} pulse={cartPulse} dark={dark} cartTarget><ShoppingCart size={22} /></IconLink>
             <div className="relative">
@@ -87,9 +103,10 @@ export function Header({ categories, links, topBar }: { categories: NavCategory[
             ))}
           </div>
         </div>
-        <AnimatePresence>{menuOpen && <MegaMenu categories={categories} onClose={() => setMenuOpen(false)} />}</AnimatePresence>
+        
       </header>
-      <MobileNav onCatalog={() => setMenuOpen(true)} />
+      <MegaMenuPortal open={menuOpen} top={menuTop} categories={categories} onClose={() => setMenuOpen(false)} />
+      <MobileNav onCatalog={() => openMenu(true)} />
     </>
   );
 }
@@ -197,18 +214,34 @@ function SearchBox({ dark }: { dark: boolean }) {
   );
 }
 
-function MegaMenu({ categories, onClose }: { categories: NavCategory[]; onClose: () => void }) {
+// Rendered into <body> via a portal: the sticky header uses backdrop-filter, which would otherwise
+// become the containing block for position:fixed children and clip the menu.
+function MegaMenuPortal({ open, top, categories, onClose }: { open: boolean; top: number; categories: NavCategory[]; onClose: () => void }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+  if (!mounted) return null;
+  return createPortal(<AnimatePresence>{open && <MegaMenu categories={categories} onClose={onClose} top={top} />}</AnimatePresence>, document.body);
+}
+
+function MegaMenu({ categories, onClose, top }: { categories: NavCategory[]; onClose: () => void; top: number }) {
   const [active, setActive] = useState(categories[0]?.id);
   const current = categories.find((c) => c.id === active);
   return (
     <>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 top-0 z-40 bg-ink/40 md:top-auto md:h-[100dvh]" onClick={onClose} />
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[55] bg-ink/40" style={{ top }} onClick={onClose} />
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -10 }}
         transition={{ duration: 0.2 }}
-        className="fixed inset-0 z-[60] overflow-y-auto bg-white text-ink md:absolute md:inset-x-0 md:top-full md:bottom-auto md:max-h-[75vh] md:shadow-lift"
+        style={{ ["--menu-top" as string]: `${top}px` }}
+        className="fixed inset-0 z-[60] overflow-y-auto bg-white text-ink md:bottom-auto md:top-[var(--menu-top)] md:max-h-[75vh] md:shadow-lift"
       >
         <div className="flex items-center justify-between border-b border-ink-100 p-4 md:hidden">
           <span className="text-lg font-bold">Каталог</span>
