@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { BadgePercent, RotateCcw, ShieldCheck, Truck, Headset, Flame, Sparkles, LayoutGrid, Store, PackageOpen } from "lucide-react";
 import { headers } from "next/headers";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { SITE_URL } from "@/lib/site-url";
 import { getHomeBlocks } from "@/lib/settings";
@@ -15,16 +16,28 @@ import { RecentlyViewed } from "@/components/shop/recent";
 
 export const metadata = { alternates: { canonical: "/" } };
 
+// Banners, brands and product count change rarely: cached and invalidated by the "catalog" tag
+const homeStatic = unstable_cache(
+  async () => {
+    const [published, banners, promos, brands] = await Promise.all([
+      prisma.product.count({ where: { status: "PUBLISHED" } }),
+      prisma.banner.findMany({ where: { active: true, position: "HERO" }, orderBy: { sortOrder: "asc" }, select: { id: true, title: true, subtitle: true, image: true, link: true, buttonText: true } }),
+      prisma.banner.findMany({ where: { active: true, position: "PROMO" }, orderBy: { sortOrder: "asc" }, take: 3, select: { id: true, title: true, subtitle: true, image: true, link: true, buttonText: true } }),
+      prisma.brand.findMany({ where: { popular: true }, orderBy: { sortOrder: "asc" }, take: 18, select: { id: true, name: true, slug: true, logo: true } }),
+    ]);
+    return { published, banners, promos, brands };
+  },
+  ["home-static"],
+  { revalidate: 120, tags: ["catalog"] },
+);
+
 export default async function HomePage() {
   const blocks = (await getHomeBlocks()).filter((b) => b.enabled);
   const needs = new Set(blocks.map((b) => b.type));
-  const [published, recommended, banners, promos, cats, brands, ...rails] = await Promise.all([
-    prisma.product.count({ where: { status: "PUBLISHED" } }),
+  const [{ published, banners, promos, brands }, recommended, cats, ...rails] = await Promise.all([
+    homeStatic(),
     homeProducts("hits", { limit: 24 }),
-    needs.has("hero") ? prisma.banner.findMany({ where: { active: true, position: "HERO" }, orderBy: { sortOrder: "asc" } }) : [],
-    needs.has("promo") ? prisma.banner.findMany({ where: { active: true, position: "PROMO" }, orderBy: { sortOrder: "asc" }, take: 3 }) : [],
     needs.has("categories") ? getNavCategories() : [],
-    needs.has("brands") ? prisma.brand.findMany({ where: { popular: true }, orderBy: { sortOrder: "asc" }, take: 18 }) : [],
     ...blocks.map((b) => (b.type === "products" ? homeProducts(b.source ?? "hits", { category: b.category, limit: b.limit, productIds: b.productIds }) : Promise.resolve([]))),
   ]);
 

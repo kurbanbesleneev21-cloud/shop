@@ -1,6 +1,7 @@
 import "server-only";
 import { createHmac } from "crypto";
 import { prisma } from "./prisma";
+import { invalidateCatalog } from "./catalog";
 import { getGroup, getSecret, parseCategoryRates } from "./settings";
 import { ApiError } from "./api";
 import { notify, notifyError, esc } from "./telegram";
@@ -149,6 +150,7 @@ export async function changeOrderStatus(orderId: string, status: string, actor: 
     if (status === "CANCELLED") await tx.payment.updateMany({ where: { orderId, status: { in: ["PENDING", "WAITING"] } }, data: { status: "CANCELED", error: "Заказ отменён" } });
     return u;
   });
+  if (restock) invalidateCatalog();
   // Payment side effects
   try {
     const { refundOrder, markPaymentSucceeded } = await import("./payments");

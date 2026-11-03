@@ -1,5 +1,4 @@
-// Page transition via CSS (opacity only): content is visible without waiting for hydration,
-// and no transform is left on the wrapper (it would break position:fixed children).
+// No page-transition animation: content appears as soon as it arrives (fastest perceived navigation).
 export default function Template({ children }: { children: React.ReactNode }) {
-  return <div className="animate-page-in">{children}</div>;
+  return <>{children}</>;
 }

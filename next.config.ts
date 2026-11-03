@@ -26,7 +26,11 @@ const nextConfig: NextConfig = {
     contentDispositionType: "inline",
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
-  experimental: { optimizePackageImports: ["lucide-react", "motion"] },
+  experimental: {
+    optimizePackageImports: ["lucide-react", "motion"],
+    // client router keeps visited pages: switching back to a tab is instant (data refreshes after the window)
+    staleTimes: { dynamic: 30, static: 300 },
+  },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

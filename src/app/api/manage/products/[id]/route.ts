@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { route, ok, body, ApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { invalidateCatalog } from "@/lib/catalog";
 import { productSchema } from "@/lib/validation";
 import { deleteProduct, duplicateProduct, saveProduct } from "@/lib/product-service";
 import { audit } from "@/lib/audit";
@@ -36,6 +37,7 @@ export const PATCH = route<{ id: string }>({ auth: "seller" }, async (req, { use
   if (data.stock !== undefined) patch.stock = data.stock;
   await prisma.product.update({ where: { id: params.id }, data: patch });
   await audit(user, "product.quick", "product", params.id, patch);
+  invalidateCatalog();
   return ok();
 });
 

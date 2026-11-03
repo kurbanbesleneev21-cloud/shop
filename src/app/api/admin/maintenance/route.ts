@@ -2,6 +2,7 @@ import { z } from "zod";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { route, ok, body, ApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { invalidateCatalog } from "@/lib/catalog";
 import { audit } from "@/lib/audit";
 
 // Bulk data cleanup for administrators (e.g. removing demo data before launch).
@@ -52,5 +53,6 @@ export const POST = route({ auth: "admin" }, async (req, { user, ip }) => {
   await audit(user, `maintenance.${data.action}`, "maintenance", null, { ...result, keepUserIds: data.keepUserIds }, ip);
   revalidateTag("categories");
   revalidatePath("/", "layout");
+  invalidateCatalog();
   return ok({ ok: true, result });
 });

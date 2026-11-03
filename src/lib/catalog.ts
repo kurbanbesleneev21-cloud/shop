@@ -1,5 +1,6 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
+import { unstable_cache, revalidateTag } from "next/cache";
 import { prisma } from "./prisma";
 
 export const cardSelect = {
@@ -132,7 +133,7 @@ export function orderBy(sort?: string): Prisma.ProductOrderByWithRelationInput[]
   }
 }
 
-export async function searchProducts(p: CatalogParams) {
+async function searchProductsRaw(p: CatalogParams) {
   const { where, notFound } = await buildWhere(p);
   if (notFound) return { notFound: true as const, items: [], total: 0, pages: 0 };
   const perPage = p.perPage ?? 24;
@@ -144,7 +145,7 @@ export async function searchProducts(p: CatalogParams) {
   return { items, total, pages: Math.ceil(total / perPage), notFound: false as const };
 }
 
-export async function facets(categorySlug?: string, q?: string) {
+async function facetsRaw(categorySlug?: string, q?: string) {
   const { where } = await buildWhere({ category: categorySlug, q });
   const [brands, colors, memory, diagonal, processor, price] = await Promise.all([
     prisma.product.groupBy({ by: ["brandId"], where, _count: true }),
@@ -178,7 +179,7 @@ export async function facets(categorySlug?: string, q?: string) {
 
 export type Facets = Awaited<ReturnType<typeof facets>>;
 
-export async function homeProducts(source: string, opts: { category?: string; limit?: number; productIds?: string[] }) {
+async function homeProductsRaw(source: string, opts: { category?: string; limit?: number; productIds?: string[] }) {
   const take = Math.min(opts.limit ?? 10, 24);
   const base: Prisma.ProductWhereInput = { status: "PUBLISHED" };
   switch (source) {
@@ -202,5 +203,28 @@ export async function homeProducts(source: string, opts: { category?: string; li
     case "hits":
     default:
       return prisma.product.findMany({ where: base, orderBy: [{ isHit: "desc" }, { salesCount: "desc" }], take, select: cardSelect });
+  }
+}
+
+// ---------------- cached public reads ----------------
+// Catalog data is cached for a short time and invalidated by tag whenever products, stock, prices or ratings change.
+export const CATALOG_TAG = "catalog";
+const TTL = 60;
+
+export const searchProducts = (p: CatalogParams) =>
+  unstable_cache(() => searchProductsRaw(p), ["search", JSON.stringify(p)], { revalidate: TTL, tags: [CATALOG_TAG] })();
+
+export const facets = (categorySlug?: string, q?: string) =>
+  unstable_cache(() => facetsRaw(categorySlug, q), ["facets", categorySlug ?? "", q ?? ""], { revalidate: TTL, tags: [CATALOG_TAG] })();
+
+export const homeProducts = (source: string, opts: { category?: string; limit?: number; productIds?: string[] }) =>
+  unstable_cache(() => homeProductsRaw(source, opts), ["home", source, JSON.stringify(opts)], { revalidate: TTL, tags: [CATALOG_TAG] })();
+
+/** Call after any change that affects what buyers see in the catalog. */
+export function invalidateCatalog() {
+  try {
+    revalidateTag(CATALOG_TAG);
+  } catch {
+    // outside a request context (scripts): nothing to invalidate
   }
 }

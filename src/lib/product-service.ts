@@ -1,6 +1,7 @@
 import "server-only";
 import { revalidatePath } from "next/cache";
 import { prisma } from "./prisma";
+import { invalidateCatalog } from "./catalog";
 import { ApiError } from "./api";
 import type { CurrentUser } from "./session";
 import type { ProductInput } from "./validation";
@@ -89,6 +90,7 @@ export async function saveProduct(input: ProductInput, user: CurrentUser, id?: s
   await audit(user, id ? "product.update" : "product.create", "product", product.id, { title: product.title, status: product.status, price: product.price }, ip);
   if (!id) notify("newProduct", `🆕 <b>Новый товар</b>\n${esc(product.title)} — ${product.price} ₽\nСтатус: ${product.status}${!isAdmin ? "\nПродавец: " + esc(user.seller?.shopName) : ""}`);
   revalidatePath(`/product/${product.slug}`);
+  invalidateCatalog();
   if (existing && existing.slug !== product.slug) revalidatePath(`/product/${existing.slug}`);
   return { product, moderated: !isAdmin && status !== input.status };
 }
@@ -116,5 +118,6 @@ export async function deleteProduct(id: string, user: CurrentUser) {
   if (user.role !== "ADMIN" && p.sellerId !== user.seller?.id) throw new ApiError(403, "Это не ваш товар");
   await prisma.product.delete({ where: { id } });
   await audit(user, "product.delete", "product", id, { title: p.title });
+  invalidateCatalog();
   revalidatePath(`/product/${p.slug}`);
 }

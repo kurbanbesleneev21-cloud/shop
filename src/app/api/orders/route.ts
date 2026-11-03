@@ -1,5 +1,6 @@
 import { route, ok, body, ApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { invalidateCatalog } from "@/lib/catalog";
 import { checkoutSchema } from "@/lib/validation";
 import { priceCart, commissionRate, afterOrderCreated } from "@/lib/orders";
 import { getGroup } from "@/lib/settings";
@@ -77,6 +78,7 @@ export const POST = route({}, async (req, { user, ip }) => {
       },
     });
   });
+  invalidateCatalog(); // stock changed
   await afterOrderCreated(order.id, req.nextUrl.origin).catch((e) => console.error(e));
   let redirectUrl: string | null = null;
   let paymentError: string | undefined;

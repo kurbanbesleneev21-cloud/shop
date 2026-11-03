@@ -46,7 +46,7 @@ export const RESOURCES: Record<string, Res> = {
       const n = await prisma.product.count({ where: { categoryId: id } });
       return n ? `В категории ${n} товаров — сначала перенесите их` : null;
     },
-    tags: ["categories"],
+    tags: ["categories", "catalog"],
     order: [{ sortOrder: "asc" }],
   },
   brands: {
@@ -59,11 +59,13 @@ export const RESOURCES: Record<string, Res> = {
       return { ...d, slug };
     },
     order: [{ sortOrder: "asc" }],
+    tags: ["catalog"],
   },
   banners: {
     model: "banner",
     schema: z.object({ title: z.string().trim().min(2).max(160), subtitle: z.string().trim().max(300).optional().nullable(), image: img, link, buttonText: z.string().trim().max(40).optional().nullable(), position: z.enum(["HERO", "PROMO"]).default("HERO"), sortOrder: z.coerce.number().int().default(0), active: z.boolean().default(true) }),
     order: [{ position: "asc" }, { sortOrder: "asc" }],
+    tags: ["catalog"],
   },
   pages: {
     model: "page",

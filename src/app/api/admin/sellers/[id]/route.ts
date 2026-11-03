@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { route, ok, body, ApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { invalidateCatalog } from "@/lib/catalog";
 import { audit } from "@/lib/audit";
 import { h, sendEmail } from "@/lib/email";
 
@@ -30,5 +31,6 @@ export const PATCH = route<{ id: string }>({ auth: "admin" }, async (req, { user
     if (data.action === "approve") sendEmail(s.user.email, "Заявка продавца одобрена", "Добро пожаловать на маркетплейс!", `<p>Магазин «${h(s.shopName)}» подключён. Кабинет продавца уже доступен.</p>`).catch(() => undefined);
   }
   await audit(user, `seller.${data.action}`, "seller", s.id, data, ip);
+  invalidateCatalog();
   return ok();
 });
