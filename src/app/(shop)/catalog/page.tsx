@@ -6,8 +6,8 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.slice(0, 60) : "";
   return {
-    title: q ? `Поиск: ${q}` : "Каталог электроники",
-    description: "Каталог электроники TECHMARKET: смартфоны, ноутбуки, наушники, телевизоры и гаджеты. Цены, характеристики, отзывы и доставка по России.",
+    title: q ? `Поиск: ${q}` : "Каталог товаров",
+    description: "Каталог VITRINA: электроника, одежда, обувь, товары для дома и красоты. Цены, характеристики, отзывы и доставка по России.",
     alternates: { canonical: "/catalog" },
     // search results and filtered/sorted lists are duplicates of the catalog: keep them out of the index
     robots: hasCatalogFilters(sp) ? { index: false, follow: true } : undefined,

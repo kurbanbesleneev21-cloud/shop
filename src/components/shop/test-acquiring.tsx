@@ -53,7 +53,7 @@ export function TestAcquiring({ payment }: { payment: { id: string; method: stri
     <div className="container-tm py-8">
       <div className="mx-auto max-w-md animate-fade-up overflow-hidden rounded-3xl border border-ink-100 shadow-lift">
         <div className="bg-ink p-5 text-white">
-          <div className="flex items-center justify-between text-sm text-white/60"><span>TECHMARKET · заказ №{payment.orderNumber}</span><Lock size={14} /></div>
+          <div className="flex items-center justify-between text-sm text-white/60"><span>VITRINA · заказ №{payment.orderNumber}</span><Lock size={14} /></div>
           <div className="mt-2 text-3xl font-extrabold">{formatPrice(payment.amount)}</div>
           <div className="mt-1 flex items-center gap-2 text-sm text-white/80">{def && <PaymentIcon icon={def.icon} size={16} />}{def?.label}</div>
         </div>

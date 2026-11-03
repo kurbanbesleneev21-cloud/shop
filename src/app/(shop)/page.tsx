@@ -50,8 +50,8 @@ export default async function HomePage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@graph": [
-              { "@type": "Organization", name: "TECHMARKET", url: SITE_URL, logo: `${SITE_URL}/favicon.svg` },
-              { "@type": "WebSite", name: "TECHMARKET", url: SITE_URL, inLanguage: "ru", potentialAction: { "@type": "SearchAction", target: `${SITE_URL}/catalog?q={search_term_string}`, "query-input": "required name=search_term_string" } },
+              { "@type": "Organization", name: "VITRINA", url: SITE_URL, logo: `${SITE_URL}/favicon.svg` },
+              { "@type": "WebSite", name: "VITRINA", url: SITE_URL, inLanguage: "ru", potentialAction: { "@type": "SearchAction", target: `${SITE_URL}/catalog?q={search_term_string}`, "query-input": "required name=search_term_string" } },
             ],
           }).replace(/</g, "\\u003c"),
         }}
@@ -149,7 +149,7 @@ export default async function HomePage() {
         <section className="mt-10 grid place-items-center rounded-card bg-ink-50 px-6 py-14 text-center sm:mt-14">
           <PackageOpen size={44} className="text-brand" />
           <h2 className="mt-4 text-xl font-extrabold sm:text-2xl">Скоро здесь появятся товары</h2>
-          <p className="mt-2 max-w-md text-ink-500">Мы готовим витрину. Хотите продавать на TECHMARKET? Откройте магазин — это бесплатно.</p>
+          <p className="mt-2 max-w-md text-ink-500">Мы готовим витрину. Хотите продавать на VITRINA? Откройте магазин — это бесплатно.</p>
           <Link href="/seller/register" className="btn-primary mt-6"><Store size={18} />Стать продавцом</Link>
         </section>
       ) : (

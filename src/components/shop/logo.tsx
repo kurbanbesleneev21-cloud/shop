@@ -3,6 +3,16 @@
 import Link from "next/link";
 import { useApp } from "../providers";
 
+/** VITRINA mark: a "V" shaped like a check mark ("выбрано"). */
+export function LogoMark({ size = 36, dark = false }: { size?: number; dark?: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 56 56" aria-hidden="true" className="shrink-0">
+      <rect width="56" height="56" rx="15" fill={dark ? "#FFFFFF" : "#111111"} />
+      <path d="M15 17l13 23 13-23" stroke="#2563EB" strokeWidth="7" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function Logo({ dark = false, href = "/", compact = false }: { dark?: boolean; href?: string; compact?: boolean }) {
   const { config } = useApp();
   if (config.logoUrl) {
@@ -13,16 +23,15 @@ export function Logo({ dark = false, href = "/", compact = false }: { dark?: boo
       </Link>
     );
   }
-  const name = config.siteName || "TECHMARKET";
-  const split = name.toUpperCase() === "TECHMARKET" ? ["TECH", "MARKET"] : [name, ""];
+  const name = config.siteName || "VITRINA";
   return (
     <Link href={href} className="group flex shrink-0 items-center gap-2" aria-label={name}>
-      <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-brand text-white transition group-hover:rotate-[-6deg] sm:h-9 sm:w-9">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M12 7v13" /><path d="M7 3h10" opacity=".5" /></svg>
+      <span className="transition group-hover:rotate-[-6deg]">
+        <span className="sm:hidden"><LogoMark size={32} dark={dark} /></span>
+        <span className="hidden sm:block"><LogoMark size={36} dark={dark} /></span>
       </span>
-      <span className={`text-[19px] font-black tracking-tight sm:text-[22px] ${compact ? "hidden sm:inline" : ""} ${dark ? "text-white" : "text-ink"}`}>
-        {split[0]}
-        <span className="text-brand">{split[1]}</span>
+      <span className={`text-[20px] font-black tracking-tight sm:text-[23px] ${compact ? "hidden sm:inline" : ""} ${dark ? "text-white" : "text-ink"}`}>
+        {name.toLowerCase() === "vitrina" ? "vitrina" : name}
       </span>
     </Link>
   );

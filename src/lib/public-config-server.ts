@@ -6,7 +6,7 @@ import { PAYMENT_METHODS } from "./payment-methods";
 export function toPublicConfig(s: SettingsValues): PublicConfig {
   const g = s.general as Record<string, never>;
   return {
-    siteName: String(g.siteName || "TECHMARKET"),
+    siteName: String(g.siteName || "VITRINA"),
     logoUrl: String(g.logoUrl || ""),
     currency: String(g.currency || "₽"),
     registration: s.registration as PublicConfig["registration"],

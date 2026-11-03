@@ -47,7 +47,7 @@ export const POST = route({ auth: "admin" }, async (req, { user, ip }) => {
     const chat = data.chatId || cfg.chatId;
     if (!chat) throw new ApiError(400, "Укажите Chat ID");
     try {
-      await sendTelegram(token, chat, data.message?.trim() || "✅ <b>TECHMARKET</b>\nТестовое сообщение: уведомления настроены правильно.");
+      await sendTelegram(token, chat, data.message?.trim() || "✅ <b>VITRINA</b>\nТестовое сообщение: уведомления настроены правильно.");
     } catch (e) { throw new ApiError(400, "Telegram: " + (e as Error).message); }
     return ok({ ok: true });
   }

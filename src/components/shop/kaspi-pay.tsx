@@ -15,7 +15,7 @@ export function KaspiPay({ payment, link, qr, tenge, instructions }: { payment: 
     <div className="container-tm py-8">
       <div className="mx-auto max-w-md animate-fade-up overflow-hidden rounded-3xl border border-ink-100 shadow-lift">
         <div className="bg-ink p-5 text-white">
-          <div className="text-sm text-white/60">TECHMARKET · заказ №{payment.orderNumber}</div>
+          <div className="text-sm text-white/60">VITRINA · заказ №{payment.orderNumber}</div>
           <div className="mt-2 text-3xl font-extrabold">{formatPrice(payment.amount)}</div>
           {tengeStr && <div className="mt-1 text-sm text-white/80">к оплате в Kaspi: <b>{tengeStr}</b></div>}
           <div className="mt-1 text-sm text-white/80">Kaspi Pay</div>

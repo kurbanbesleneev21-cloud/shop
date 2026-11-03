@@ -49,9 +49,9 @@ export const SETTINGS_GROUPS: SettingGroup[] = [
     title: "Основные",
     description: "Название, описание, логотип и режим работы сайта",
     fields: [
-      text("siteName", "Название сайта", "TECHMARKET"),
+      text("siteName", "Название сайта", "VITRINA"),
       text("tagline", "Слоган", "Маркетплейс электроники и техники"),
-      area("description", "Описание сайта", "TECHMARKET — маркетплейс электроники: смартфоны, ноутбуки, комплектующие и бытовая техника от проверенных продавцов с быстрой доставкой."),
+      area("description", "Описание сайта", "VITRINA — маркетплейс: электроника, одежда, обувь, товары для дома и красоты от проверенных продавцов с быстрой доставкой."),
       image("logoUrl", "Логотип", "Если пусто — используется текстовый логотип"),
       image("faviconUrl", "Favicon"),
       text("currency", "Символ валюты", "₽"),
@@ -138,7 +138,7 @@ export const SETTINGS_GROUPS: SettingGroup[] = [
     description: "Отправка писем подтверждения, восстановления пароля и уведомлений",
     fields: [
       select("provider", "Провайдер", "none", [["none", "Не настроен"], ["smtp", "SMTP"], ["resend", "Resend API"]]),
-      text("fromName", "Имя отправителя", "TECHMARKET"),
+      text("fromName", "Имя отправителя", "VITRINA"),
       text("fromEmail", "Email отправителя", "no-reply@techmarket.ru"),
       text("smtpHost", "SMTP хост", ""),
       num("smtpPort", "SMTP порт", 587, 1, 65535),
@@ -238,8 +238,8 @@ export const SETTINGS_GROUPS: SettingGroup[] = [
     key: "seo",
     title: "SEO и метаданные",
     fields: [
-      text("titleTemplate", "Шаблон заголовка (%s — название страницы)", "%s — TECHMARKET"),
-      text("defaultTitle", "Заголовок главной", "TECHMARKET — маркетплейс электроники и техники"),
+      text("titleTemplate", "Шаблон заголовка (%s — название страницы)", "%s — VITRINA"),
+      text("defaultTitle", "Заголовок главной", "VITRINA — маркетплейс электроники, одежды и товаров для дома"),
       area("defaultDescription", "Meta description", "Смартфоны, ноутбуки, комплектующие, ТВ и бытовая техника с доставкой. Тысячи товаров, честные отзывы, гарантия."),
       text("keywords", "Ключевые слова", "электроника, смартфоны, ноутбуки, маркетплейс"),
       image("ogImage", "Изображение для соцсетей (OG)"),
@@ -329,7 +329,7 @@ export const SETTINGS_GROUPS: SettingGroup[] = [
           { label: "Наушники", href: "/catalog/headphones" },
           { label: "Телевизоры", href: "/catalog/tv" },
           { label: "Скидки", href: "/catalog?discount=1" },
-          { label: "Продавать на TECHMARKET", href: "/seller/register" },
+          { label: "Продавать на VITRINA", href: "/seller/register" },
         ],
       },
     ],
@@ -338,8 +338,8 @@ export const SETTINGS_GROUPS: SettingGroup[] = [
     key: "footer",
     title: "Футер",
     fields: [
-      area("aboutText", "Текст о компании", "TECHMARKET — маркетплейс электроники, где тысячи продавцов предлагают оригинальную технику с гарантией."),
-      text("copyright", "Копирайт", "© TECHMARKET. Все права защищены."),
+      area("aboutText", "Текст о компании", "VITRINA — маркетплейс, где проверенные продавцы предлагают электронику, одежду, товары для дома и многое другое."),
+      text("copyright", "Копирайт", "© VITRINA. Все права защищены."),
       {
         key: "links",
         label: "Ссылки футера",
@@ -421,7 +421,7 @@ export const DEFAULT_HOME_BLOCKS: HomeBlock[] = [
   { id: "audio", type: "products", title: "Наушники и аксессуары", source: "category", category: "headphones", limit: 10, enabled: true },
   { id: "deals", type: "products", title: "Скидки дня", source: "discount", limit: 10, enabled: true },
   { id: "brands", type: "brands", title: "Популярные бренды", enabled: true },
-  { id: "advantages", type: "advantages", title: "Почему TECHMARKET", enabled: true },
+  { id: "advantages", type: "advantages", title: "Почему VITRINA", enabled: true },
 ];
 
 export type SettingsValues = Record<string, Record<string, unknown>>;

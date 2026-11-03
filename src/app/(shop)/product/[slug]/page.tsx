@@ -131,7 +131,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       price: p.price,
       itemCondition: "https://schema.org/NewCondition",
       availability: p.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-      seller: { "@type": "Organization", name: p.seller?.shopName || "TECHMARKET" },
+      seller: { "@type": "Organization", name: p.seller?.shopName || "VITRINA" },
     },
     aggregateRating: count ? { "@type": "AggregateRating", ratingValue: Number(avg.toFixed(1)), reviewCount: count } : undefined,
   };

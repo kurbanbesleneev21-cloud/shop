@@ -16,7 +16,7 @@ export async function sendPhoneCode(phone: string, purpose = "register") {
   await prisma.phoneCode.updateMany({ where: { phone, purpose, usedAt: null }, data: { usedAt: new Date() } });
   await prisma.phoneCode.create({ data: { phone, purpose, codeHash: hash(phone, code), expiresAt: new Date(Date.now() + 10 * 60_000) } });
   if (await smsConfigured()) {
-    await sendSms(phone, `TECHMARKET: код подтверждения ${code}. Никому не сообщайте его.`);
+    await sendSms(phone, `VITRINA: код подтверждения ${code}. Никому не сообщайте его.`);
     return { sent: true as const };
   }
   const cfg = await getGroup<{ devShowCode: boolean }>("sms");

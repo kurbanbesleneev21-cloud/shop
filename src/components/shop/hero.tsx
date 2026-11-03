@@ -12,7 +12,7 @@ export type BannerData = { id: string; title: string; subtitle: string | null; i
 const DEFAULT_BANNERS: BannerData[] = [
   { id: "d1", title: "Электроника по честным ценам", subtitle: "Смартфоны, ноутбуки, наушники и гаджеты от проверенных продавцов", image: null, link: "/catalog", buttonText: "В каталог" },
   { id: "d2", title: "Оплата по СБП и Kaspi", subtitle: "Быстро и безопасно — без ввода данных карты", image: null, link: "/catalog?discount=1", buttonText: "Смотреть скидки" },
-  { id: "d3", title: "Продавайте на TECHMARKET", subtitle: "Откройте магазин за 5 минут и получайте заказы со всей страны", image: null, link: "/seller/register", buttonText: "Стать продавцом" },
+  { id: "d3", title: "Продавайте на VITRINA", subtitle: "Откройте магазин за 5 минут и получайте заказы со всей страны", image: null, link: "/seller/register", buttonText: "Стать продавцом" },
 ];
 
 export function Hero({ banners: own }: { banners: BannerData[] }) {

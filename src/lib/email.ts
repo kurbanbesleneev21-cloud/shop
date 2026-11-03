@@ -42,7 +42,7 @@ export async function sendEmail(to: string, subject: string, title: string, html
   subject = subject.replace(/[\r\n]+/g, " ").slice(0, 200);
   const cfg = await getGroup<EmailCfg>("email");
   const general = await getGroup<{ siteName: string }>("general");
-  const content = layout(title, html, general.siteName || "TECHMARKET");
+  const content = layout(title, html, general.siteName || "VITRINA");
   const from = `${cfg.fromName || general.siteName} <${cfg.fromEmail}>`;
   try {
     if (cfg.provider === "resend") {

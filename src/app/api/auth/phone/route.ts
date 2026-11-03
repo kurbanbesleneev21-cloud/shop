@@ -17,7 +17,7 @@ export const POST = route({ auth: "user" }, async (req, { user }) => {
     await prisma.verificationToken.create({
       data: { userId: user!.id, type: "PHONE_CODE", tokenHash: sha256(user!.id + ":" + code), expiresAt: new Date(Date.now() + 10 * 60_000) },
     });
-    await sendSms(user!.phone, `Код подтверждения TECHMARKET: ${code}`);
+    await sendSms(user!.phone, `Код подтверждения VITRINA: ${code}`);
     return ok({ ok: true });
   }
   const rec = await prisma.verificationToken.findFirst({ where: { userId: user!.id, type: "PHONE_CODE", usedAt: null } });

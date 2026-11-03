@@ -30,7 +30,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-white/70">
             <span>★ {(stats._avg.rating ?? s.rating).toFixed(1)} · {stats._count} {plural(stats._count, ["отзыв", "отзыва", "отзывов"])}</span>
             <span className="flex items-center gap-1"><Package size={14} />{products.length} товаров</span>
-            <span className="flex items-center gap-1"><ShieldCheck size={14} />на TECHMARKET с {formatDate(s.createdAt)}</span>
+            <span className="flex items-center gap-1"><ShieldCheck size={14} />на VITRINA с {formatDate(s.createdAt)}</span>
           </div>
         </div>
       </div>

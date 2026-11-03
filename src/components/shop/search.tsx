@@ -145,7 +145,7 @@ function Field({ q, setQ, loading, dark, autoFocus, onFocus, onBlur, inputRef }:
         onFocus={onFocus}
         onBlur={onBlur}
         autoFocus={autoFocus}
-        placeholder="Искать на TECHMARKET"
+        placeholder="Искать на VITRINA"
         className="h-full min-w-0 flex-1 bg-transparent px-3 text-[16px] text-ink outline-none placeholder:text-ink-500"
         aria-label="Поиск товаров"
         enterKeyHint="search"
@@ -218,7 +218,7 @@ export function MobileSearch({ categories }: { categories: NavCategory[] }) {
     <>
       <button type="button" onClick={() => setOpen(true)} className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-btn border-2 border-brand bg-white px-3 text-left text-[15px] text-ink-400 md:hidden" aria-label="Открыть поиск">
         <Search size={18} className="shrink-0 text-brand" />
-        <span className={cn("truncate", current && "text-ink")}>{current || "Искать на TECHMARKET"}</span>
+        <span className={cn("truncate", current && "text-ink")}>{current || "Искать на VITRINA"}</span>
       </button>
       {mounted && createPortal(<AnimatePresence>{open && <MobileOverlay initial={current} categories={categories} onClose={() => setOpen(false)} />}</AnimatePresence>, document.body)}
     </>

@@ -108,7 +108,7 @@ export function ProfileHub({ user, counts, pages }: { user: HubUser; counts: Cou
         {user.seller === "APPROVED" ? (
           <Row href="/seller" icon={Store} accent>Кабинет продавца</Row>
         ) : (
-          <Row href="/seller/register" icon={Store} accent hint={user.seller === "PENDING" ? "Заявка на проверке" : "Продавайте на TECHMARKET"}>{user.seller === "PENDING" ? "Заявка продавца" : "Стать продавцом"}</Row>
+          <Row href="/seller/register" icon={Store} accent hint={user.seller === "PENDING" ? "Заявка на проверке" : "Продавайте на VITRINA"}>{user.seller === "PENDING" ? "Заявка продавца" : "Стать продавцом"}</Row>
         )}
         {user.admin && <Row href="/admin" icon={ShieldCheck} accent>Админ-панель</Row>}
         <Row href="/account/support" icon={LifeBuoy} hint={counts.tickets ? `Обращений: ${counts.tickets}` : "Чат с поддержкой"}>Поддержка</Row>

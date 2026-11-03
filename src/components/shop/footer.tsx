@@ -14,7 +14,10 @@ export async function Footer() {
     <footer className="mt-16 bg-ink pb-24 text-white md:pb-0">
       <div className="container-tm grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <div className="text-2xl font-black tracking-tight">{String(s.general.siteName).toUpperCase() === "TECHMARKET" ? <>TECH<span className="text-brand">MARKET</span></> : String(s.general.siteName)}</div>
+          <div className="flex items-center gap-2.5 text-2xl font-black tracking-tight">
+            <svg width="36" height="36" viewBox="0 0 56 56" aria-hidden="true"><rect width="56" height="56" rx="15" fill="#FFFFFF" /><path d="M15 17l13 23 13-23" stroke="#2563EB" strokeWidth="7" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            {String(s.general.siteName).toUpperCase() === "VITRINA" ? "vitrina" : String(s.general.siteName)}
+          </div>
           <p className="mt-3 text-sm leading-relaxed text-white/60">{footer.aboutText}</p>
           {socials.length > 0 && (
             <div className="mt-5 flex flex-wrap gap-2">

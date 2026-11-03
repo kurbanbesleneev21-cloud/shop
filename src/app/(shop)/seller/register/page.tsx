@@ -8,12 +8,12 @@ export const metadata = { title: "Стать продавцом" };
 
 export default async function SellerRegister() {
   const user = await getCurrentUser();
-  if (!user) return <LoginPrompt title="Продавайте на TECHMARKET" text="Войдите или зарегистрируйтесь, чтобы подать заявку на подключение магазина." />;
+  if (!user) return <LoginPrompt title="Продавайте на VITRINA" text="Войдите или зарегистрируйтесь, чтобы подать заявку на подключение магазина." />;
   const s = await prisma.seller.findUnique({ where: { userId: user.id } });
   return (
     <div className="container-tm max-w-3xl pt-6">
       <div className="rounded-card bg-ink p-6 text-white sm:p-10">
-        <h1 className="text-3xl font-extrabold">Продавайте на TECHMARKET</h1>
+        <h1 className="text-3xl font-extrabold">Продавайте на VITRINA</h1>
         <p className="mt-2 text-white/70">Миллионы покупателей, удобный кабинет, быстрые выплаты и прозрачные комиссии.</p>
       </div>
       <div className="mt-6">

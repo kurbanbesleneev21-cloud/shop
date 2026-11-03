@@ -16,7 +16,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
     return (
       <main className="grid min-h-[100dvh] place-items-center bg-white p-6 text-center">
         <div className="max-w-md animate-fade-up">
-          <div className="mx-auto mb-6 grid h-16 w-16 place-items-center rounded-2xl bg-brand text-2xl font-black text-white">T</div>
+          <svg className="mx-auto mb-6" width="64" height="64" viewBox="0 0 56 56" aria-hidden="true"><rect width="56" height="56" rx="15" fill="#111111" /><path d="M15 17l13 23 13-23" stroke="#2563EB" strokeWidth="7" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
           <h1 className="text-3xl font-extrabold">{String(g.siteName)}</h1>
           <p className="mt-3 text-ink-500">{String(g.maintenanceMessage)}</p>
         </div>

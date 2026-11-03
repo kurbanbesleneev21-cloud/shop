@@ -58,7 +58,7 @@ export function TelegramView({ connected, chatId: initialChat, enabled: initialE
           <button className="btn-outline" disabled={!!busy || (!connected && !token)} onClick={() => run("check", { token: token || undefined })}>{busy === "check" ? <Loader2 size={16} className="animate-spin" /> : <Wifi size={16} />}Проверить соединение</button>
         </div>
         <div className="border-t border-ink-100 pt-3">
-          <F label="Тестовое сообщение"><textarea className="textarea min-h-[70px]" value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="✅ TECHMARKET: тестовое сообщение" /></F>
+          <F label="Тестовое сообщение"><textarea className="textarea min-h-[70px]" value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="✅ VITRINA: тестовое сообщение" /></F>
           <button className="btn-dark mt-2" disabled={!!busy || !connected || !chatId} onClick={() => run("test", { chatId, message: msg })}>{busy === "test" ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}Отправить тестовое сообщение</button>
         </div>
       </Card>

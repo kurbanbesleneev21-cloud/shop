@@ -68,7 +68,7 @@ export function AppearanceView({ values, hasDrafts, banners, categories, product
         {tab === "brand" && <SettingsGroupForm group={brandGroup} initial={values.general} secrets={{}} draft onSaved={() => setDirty(true)} />}
         {(["design", "menu", "footer", "contacts", "social", "ads"] as const).map((k) => tab === k && <SettingsGroupForm key={k} group={g(k)} initial={values[k]} secrets={{}} draft onSaved={() => setDirty(true)} />)}
         {tab === "design" && (
-          <p className="mt-4 rounded-xl bg-ink-50 p-3 text-sm text-ink-600">Фирменная палитра TECHMARKET: чёрный #111111, белый #FFFFFF и синий #2563EB. Оттенки для наведения и нажатия рассчитываются автоматически.</p>
+          <p className="mt-4 rounded-xl bg-ink-50 p-3 text-sm text-ink-600">Фирменная палитра VITRINA: чёрный #111111, белый #FFFFFF и синий #2563EB. Оттенки для наведения и нажатия рассчитываются автоматически.</p>
         )}
         {tab === "home" && <HomeBlocksEditor initial={(values.home?.blocks as HomeBlock[]) ?? []} categories={categories} products={products} onSaved={() => setDirty(true)} />}
         {tab === "banners" && (

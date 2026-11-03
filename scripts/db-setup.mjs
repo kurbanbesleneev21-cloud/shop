@@ -12,3 +12,4 @@ console.log("Using database from", source);
 const env = { ...process.env, ...db };
 execSync("npx prisma db push --skip-generate", { stdio: "inherit", env });
 execSync("node prisma/seed.mjs", { stdio: "inherit", env });
+execSync("node scripts/rebrand.mjs", { stdio: "inherit", env });

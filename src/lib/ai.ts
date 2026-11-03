@@ -16,7 +16,7 @@ const ENDPOINTS: Record<string, string> = {
 };
 
 function prompt(input: AiInput, cats: AiCategory[]) {
-  return `Ты — редактор карточек товаров маркетплейса электроники TECHMARKET. Пиши на русском языке, грамотно, без воды и без эмодзи.
+  return `Ты — редактор карточек товаров маркетплейса VITRINA (электроника, одежда, товары для дома и другое). Пиши на русском языке, грамотно, без воды и без эмодзи.
 
 СТРОГИЕ ПРАВИЛА:
 1. НЕ выдумывай технические характеристики, цены, наличие, гарантию, комплектацию и любые числа. Используй ТОЛЬКО данные, которые дал администратор (поля ниже и фото).
@@ -78,7 +78,7 @@ export async function generateCard(input: AiInput, cats: AiCategory[]): Promise<
     const content: unknown = input.image && cfg.provider !== "groq" ? [{ type: "text", text }, { type: "image_url", image_url: { url: input.image } }] : text;
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, ...(cfg.provider === "openrouter" ? { "X-Title": "TECHMARKET" } : {}) },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, ...(cfg.provider === "openrouter" ? { "X-Title": "VITRINA" } : {}) },
       body: JSON.stringify({ model: cfg.model, temperature, response_format: { type: "json_object" }, messages: [{ role: "system", content: "Ты отвечаешь только валидным JSON." }, { role: "user", content }] }),
       signal: AbortSignal.timeout(55000),
     });

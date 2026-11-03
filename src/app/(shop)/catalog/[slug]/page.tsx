@@ -11,7 +11,7 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
   });
   if (!c || !c.active) return { title: "Категория не найдена", robots: { index: false } };
   const count = await prisma.product.count({ where: { status: "PUBLISHED", categoryId: { in: [c.id, ...c.children.map((x) => x.id)] } } });
-  const description = c.description || `${c.name} — купить в интернет-магазине TECHMARKET. Цены, характеристики, отзывы покупателей и быстрая доставка.`;
+  const description = c.description || `${c.name} — купить в интернет-магазине VITRINA. Цены, характеристики, отзывы покупателей и быстрая доставка.`;
   return {
     title: `${c.name} — купить в интернет-магазине`,
     description,

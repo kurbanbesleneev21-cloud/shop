@@ -106,7 +106,7 @@ export async function createPayment(orderId: string, origin: string): Promise<{ 
       body: {
         paymentMethod: code,
         paymentDetails: { amount: order.total, currency: "RUB" },
-        description: `Заказ №${order.number} в TECHMARKET`,
+        description: `Заказ №${order.number} в VITRINA`,
         return: returnUrl,
         failedUrl: returnUrl,
         payload: payment.id,
