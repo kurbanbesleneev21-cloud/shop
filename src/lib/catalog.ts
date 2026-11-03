@@ -49,19 +49,19 @@ export function parseCatalogParams(sp: Record<string, string | string[] | undefi
   const one = (k: string) => (Array.isArray(sp[k]) ? (sp[k] as string[])[0] : (sp[k] as string | undefined));
   const n = (k: string) => {
     const v = Number(one(k));
-    return Number.isFinite(v) && v > 0 ? v : undefined;
+    return Number.isFinite(v) && v > 0 ? Math.min(v, 1_000_000_000) : undefined;
   };
   return {
     q: one("q")?.slice(0, 120),
     brand: arr(sp.brand),
-    min: n("min"),
-    max: n("max"),
+    min: n("min") && Math.floor(n("min")!),
+    max: n("max") && Math.floor(n("max")!),
     color: arr(sp.color),
     memory: arr(sp.memory),
     diagonal: arr(sp.diagonal),
     processor: arr(sp.processor),
     model: one("model")?.slice(0, 80),
-    rating: n("rating"),
+    rating: n("rating") && Math.min(n("rating")!, 5),
     inStock: one("stock") === "1",
     discount: one("discount") === "1",
     sort: one("sort"),

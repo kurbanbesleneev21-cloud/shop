@@ -16,6 +16,7 @@ export const POST = route<{ id: string }>({}, async (req, { params }) => {
   if (!p) throw new ApiError(404, "Платёж не найден");
   if (p.order.paymentStatus === "paid") throw new ApiError(409, "Заказ уже оплачен");
   if (p.order.status !== "NEW") throw new ApiError(409, "Заказ нельзя оплатить");
+  await prisma.payment.updateMany({ where: { orderId: p.orderId, status: "PENDING" }, data: { status: "CANCELED", error: "Создана новая попытка оплаты" } });
   const r = await createPayment(p.orderId, req.nextUrl.origin);
   return ok(r);
 });

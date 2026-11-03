@@ -35,7 +35,13 @@ export function route<P = Record<string, string>>(
       if (req.method !== "GET" && req.method !== "HEAD") {
         const origin = req.headers.get("origin");
         const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
-        if (origin && host && new URL(origin).host !== host) throw new ApiError(403, "Недопустимый источник запроса");
+        if (origin && host) {
+          let originHost = "";
+          try {
+            originHost = new URL(origin).host;
+          } catch {}
+          if (originHost !== host) throw new ApiError(403, "Недопустимый источник запроса");
+        }
         // Browsers mark cross-site requests; reject them for state-changing calls (CSRF defence in depth)
         if (req.headers.get("sec-fetch-site") === "cross-site" && !opts.allowCrossSite) throw new ApiError(403, "Недопустимый источник запроса");
       }

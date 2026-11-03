@@ -126,8 +126,14 @@ export async function markPaymentSucceeded(paymentId: string, meta?: Record<stri
   const p = await prisma.payment.findUnique({ where: { id: paymentId }, include: { order: true } });
   if (!p || p.status === "SUCCEEDED" || p.status === "REFUNDED") return p;
   const now = new Date();
-  await prisma.payment.update({ where: { id: p.id }, data: { status: "SUCCEEDED", paidAt: now, ...(meta ? { meta: meta as object } : {}) } });
-  await prisma.order.update({ where: { id: p.orderId }, data: { paymentStatus: "paid", paidAt: now } });
+  // Atomic claim: callback, status sync and manual confirmation may race
+  const claimed = await prisma.$transaction(async (tx) => {
+    const r = await tx.payment.updateMany({ where: { id: p.id, status: { in: ["PENDING", "WAITING"] } }, data: { status: "SUCCEEDED", paidAt: now, ...(meta ? { meta: meta as object } : {}) } });
+    if (r.count === 0) return false;
+    await tx.order.update({ where: { id: p.orderId }, data: { paymentStatus: "paid", paidAt: now } });
+    return true;
+  });
+  if (!claimed) return p;
   if (["NEW", "CONFIRMED"].includes(p.order.status)) {
     const { changeOrderStatus } = await import("./orders");
     await changeOrderStatus(p.orderId, "PAID", null, `Оплата получена: ${methodDef(p.method)?.label ?? p.method} (${p.provider})`);
@@ -150,8 +156,9 @@ export async function syncPayment(paymentId: string) {
   const status = String(r.status ?? "").toUpperCase();
   if (status === "CONFIRMED" && p.status === "PENDING") {
     const amount = Number(r.paymentDetails?.amount);
-    if (Number.isFinite(amount) && Math.round(amount) !== p.amount) {
-      await prisma.payment.update({ where: { id: p.id }, data: { error: `Сумма в Platega (${amount}) не совпадает с заказом (${p.amount}) — проверьте вручную` } });
+    const currency = r.paymentDetails?.currency;
+    if (!Number.isFinite(amount) || Math.round(amount) !== p.amount || (currency && currency.toUpperCase() !== "RUB")) {
+      await prisma.payment.update({ where: { id: p.id }, data: { error: `Сумма в Platega (${r.paymentDetails?.amount ?? "нет"} ${currency ?? ""}) не совпадает с заказом (${p.amount} RUB) — проверьте вручную` } });
       return prisma.payment.findUnique({ where: { id: paymentId } });
     }
     await markPaymentSucceeded(p.id, { plategaStatus: status });
@@ -200,7 +207,7 @@ export async function expireUnpaidOrders() {
   const { changeOrderStatus } = await import("./orders");
   for (const o of stale) {
     await prisma.payment.updateMany({ where: { orderId: o.id, status: "PENDING" }, data: { status: "CANCELED", error: "Истёк срок оплаты" } });
-    await changeOrderStatus(o.id, "CANCELLED", null, "Автоматически: заказ не оплачен вовремя").catch(() => undefined);
+    await changeOrderStatus(o.id, "CANCELLED", null, "Автоматически: заказ не оплачен вовремя").catch((e) => console.error("[payments] auto-cancel failed", o.id, (e as Error).message));
   }
   return stale.length;
 }

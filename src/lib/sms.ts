@@ -40,8 +40,9 @@ export async function sendSms(phone: string, text: string) {
     const params = new URLSearchParams({ api_id: apiId, to: phone.replace(/\D/g, ""), msg: text, json: "1" });
     if (cfg.sender) params.set("from", cfg.sender);
     const res = await fetch("https://sms.ru/sms/send?" + params.toString(), { signal: AbortSignal.timeout(10000) });
-    const data = (await res.json().catch(() => ({}))) as { status?: string; status_text?: string };
-    if (data.status !== "OK") throw new Error(data.status_text || "Ошибка отправки SMS");
+    const data = (await res.json().catch(() => ({}))) as { status?: string; status_text?: string; sms?: Record<string, { status?: string; status_text?: string }> };
+    const per = data.sms?.[phone.replace(/\D/g, "")];
+    if (data.status !== "OK" || (per && per.status !== "OK")) throw new Error(per?.status_text || data.status_text || "Ошибка отправки SMS");
     return true;
   }
   throw new Error("SMS-провайдер не подключён");

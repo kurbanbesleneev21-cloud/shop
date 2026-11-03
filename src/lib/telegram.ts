@@ -40,5 +40,5 @@ export async function notify(event: TgEvent, text: string) {
 }
 
 export async function notifyError(message: string) {
-  return notify("systemError", `⚠️ <b>Ошибка системы</b>\n${esc(message).slice(0, 3000)}`);
+  return notify("systemError", `⚠️ <b>Ошибка системы</b>\n${esc(message.slice(0, 3000))}`);
 }

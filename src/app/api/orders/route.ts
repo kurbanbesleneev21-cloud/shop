@@ -8,7 +8,7 @@ import { createPayment, expireUnpaidOrders, paymentsCfg, plategaConfigured } fro
 import { methodDef } from "@/lib/payment-methods";
 
 export const GET = route({ auth: "user" }, async (_req, { user }) => {
-  const orders = await prisma.order.findMany({ where: { userId: user!.id }, orderBy: { createdAt: "desc" }, include: { items: true } });
+  const orders = await prisma.order.findMany({ where: { userId: user!.id }, orderBy: { createdAt: "desc" }, include: { items: true }, take: 50 });
   return ok({ orders });
 });
 

@@ -100,6 +100,8 @@ model Address {
   zip       String?
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model VerificationToken {
@@ -305,7 +307,9 @@ model Order {
 
   @@index([status])
   @@index([createdAt])
-  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([userId, status, paymentStatus])
+  @@index([status, paymentStatus, createdAt])
 }
 
 model OrderItem {
@@ -364,6 +368,7 @@ model Review {
   @@unique([productId, userId])
   @@index([status])
   @@index([productId, status])
+  @@index([userId, createdAt])
 }
 
 model PromoCode {
@@ -445,6 +450,7 @@ model SupportTicket {
   createdAt DateTime     @default(now())
 
   @@index([status])
+  @@index([userId])
 }
 
 model Payout {

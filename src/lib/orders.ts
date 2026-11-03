@@ -3,7 +3,7 @@ import { createHmac } from "crypto";
 import { prisma } from "./prisma";
 import { getGroup, getSecret, parseCategoryRates } from "./settings";
 import { ApiError } from "./api";
-import { notify, esc } from "./telegram";
+import { notify, notifyError, esc } from "./telegram";
 import { sendEmail, button, h } from "./email";
 import { formatPrice, ORDER_STATUS_LABELS } from "./utils";
 import { assertPublicHttpsUrl } from "./url-safety";
@@ -131,8 +131,11 @@ export async function changeOrderStatus(orderId: string, status: string, actor: 
   if (order.status === status) return order;
   const restock = (status === "CANCELLED" && !["CANCELLED", "RETURNED"].includes(order.status)) || (status === "RETURNED" && order.status !== "RETURNED");
   const updated = await prisma.$transaction(async (tx) => {
+    // Compare-and-set: concurrent status changes (double click, expiry job) must not restock/refund twice
+    const claimed = await tx.order.updateMany({ where: { id: orderId, status: order.status }, data: { updatedAt: new Date() } });
+    if (claimed.count === 0) throw new ApiError(409, "Статус заказа уже изменён, обновите страницу");
     if (restock) {
-      for (const it of order.items) if (it.productId) await tx.product.update({ where: { id: it.productId }, data: { stock: { increment: it.qty }, salesCount: { decrement: it.qty } } }).catch(() => undefined);
+      for (const it of order.items) if (it.productId) await tx.product.updateMany({ where: { id: it.productId }, data: { stock: { increment: it.qty }, salesCount: { decrement: it.qty } } });
     }
     const u = await tx.order.update({
       where: { id: orderId },
@@ -159,6 +162,8 @@ export async function changeOrderStatus(orderId: string, status: string, actor: 
     }
   } catch (e) {
     await prisma.orderEvent.create({ data: { orderId: order.id, status: status as never, note: `Ошибка платёжной операции: ${(e as Error).message}`.slice(0, 500) } });
+    console.error("[orders] payment side effect failed", order.number, e);
+    notifyError(`Заказ №${order.number}: ошибка возврата/подтверждения оплаты — ${(e as Error).message}. Проверьте вручную.`).catch(() => undefined);
   }
   notify("orderStatus", `📦 Заказ <b>№${order.number}</b>: ${ORDER_STATUS_LABELS[order.status]} → <b>${ORDER_STATUS_LABELS[status]}</b>${note ? "\n" + esc(note) : ""}`);
   const n = await getGroup<{ emailOnStatus: boolean }>("notifications");

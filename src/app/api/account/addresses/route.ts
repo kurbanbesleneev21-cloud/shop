@@ -16,11 +16,14 @@ export const GET = route({ auth: "user" }, async (_req, { user }) => {
 
 export const POST = route({ auth: "user", limit: 30 }, async (req, { user }) => {
   const d = await body(req, schema);
-  const count = await prisma.address.count({ where: { userId: user!.id } });
-  if (count >= 10) throw new ApiError(400, "Можно сохранить не больше 10 адресов");
-  const makeDefault = d.isDefault || count === 0;
-  if (makeDefault) await prisma.address.updateMany({ where: { userId: user!.id }, data: { isDefault: false } });
-  const a = await prisma.address.create({ data: { userId: user!.id, city: d.city, line: d.line, zip: d.zip || null, isDefault: makeDefault } });
+  const a = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT id FROM "User" WHERE id = ${user!.id} FOR UPDATE`;
+    const count = await tx.address.count({ where: { userId: user!.id } });
+    if (count >= 10) throw new ApiError(400, "Можно сохранить не больше 10 адресов");
+    const makeDefault = d.isDefault || count === 0;
+    if (makeDefault) await tx.address.updateMany({ where: { userId: user!.id }, data: { isDefault: false } });
+    return tx.address.create({ data: { userId: user!.id, city: d.city, line: d.line, zip: d.zip || null, isDefault: makeDefault } });
+  });
   return ok({ id: a.id });
 });
 
@@ -39,10 +42,12 @@ export const DELETE = route({ auth: "user" }, async (req, { user }) => {
   const id = req.nextUrl.searchParams.get("id") || "";
   const a = await prisma.address.findFirst({ where: { id, userId: user!.id } });
   if (!a) throw new ApiError(404, "Адрес не найден");
-  await prisma.address.delete({ where: { id } });
-  if (a.isDefault) {
-    const next = await prisma.address.findFirst({ where: { userId: user!.id }, orderBy: { createdAt: "desc" } });
-    if (next) await prisma.address.update({ where: { id: next.id }, data: { isDefault: true } });
-  }
+  await prisma.$transaction(async (tx) => {
+    await tx.address.delete({ where: { id } });
+    if (a.isDefault) {
+      const next = await tx.address.findFirst({ where: { userId: user!.id }, orderBy: { createdAt: "desc" } });
+      if (next) await tx.address.update({ where: { id: next.id }, data: { isDefault: true } });
+    }
+  });
   return ok();
 });
