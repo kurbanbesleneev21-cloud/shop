@@ -10,7 +10,7 @@ import { RecentlyViewed } from "./recent";
 import { api } from "@/lib/client-api";
 import { formatPrice, plural } from "@/lib/utils";
 
-type Validated = { lines: { productId: string; price: number; oldPrice: number | null; stock: number; available: boolean; title: string }[] };
+type Validated = { lines: { productId: string; price: number; oldPrice: number | null; stock: number; available: boolean; title: string }[]; error?: string };
 
 export function useValidatedCart() {
   const { cart } = useApp();
@@ -19,7 +19,9 @@ export function useValidatedCart() {
   useEffect(() => {
     if (!cart.length) return setData({ lines: [] });
     const t = setTimeout(() => {
-      api<Validated>("/api/cart/validate", { body: { items: cart.map((c) => ({ productId: c.id, qty: c.qty })) } }).then(setData).catch(() => undefined);
+      api<Validated>("/api/cart/validate", { body: { items: cart.map((c) => ({ productId: c.id, qty: c.qty })) } })
+        .then(setData)
+        .catch((e) => setData({ lines: [], error: (e as Error).message || "Не удалось проверить наличие" } as Validated));
     }, 150);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -166,6 +168,7 @@ export function CartView() {
               </div>
             )}
             {subtotal < config.cart.minOrder && <p className="mt-3 rounded-xl bg-ink-50 p-3 text-sm">Минимальная сумма заказа — {formatPrice(config.cart.minOrder, config.currency)}</p>}
+            {v?.error && <div role="alert" className="mt-4 rounded-xl bg-ink-50 p-3 text-sm">Не удалось проверить наличие и цены: {v.error}. Итог уточнится при оформлении.</div>}
             <Link href="/checkout" aria-disabled={!active.length || subtotal < config.cart.minOrder} className={`btn-primary btn-lg mt-4 w-full ${!active.length || subtotal < config.cart.minOrder ? "pointer-events-none opacity-50" : ""}`}>
               Перейти к оформлению
             </Link>

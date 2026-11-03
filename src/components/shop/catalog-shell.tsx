@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useState, useTransition, type Rea
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpDown, Check, ChevronDown, SlidersHorizontal, X, Star } from "lucide-react";
 import { cn, formatPrice } from "@/lib/utils";
+import { useDialog } from "../use-dialog";
 
 type Opt = { value: string; label?: string; count: number };
 export type FacetsData = { brands: Opt[]; colors: Opt[]; memory: Opt[]; diagonal: Opt[]; processor: Opt[]; priceMin: number; priceMax: number };
@@ -48,7 +49,7 @@ export function CatalogShell({ facets, defaultSort, showFilters, total, children
           <ArrowUpDown size={16} /> {SORTS.find(([k]) => k === sort)?.[1] ?? "Сортировка"}
         </button>
         {showFilters && (
-          <button onClick={() => setSheet(true)} className={cn("chip shrink-0 lg:hidden", active.length > 0 && "chip-active")}>
+          <button onClick={() => setSheet(true)} aria-haspopup="dialog" className={cn("chip shrink-0 lg:hidden", active.length > 0 && "chip-active")}>
             <SlidersHorizontal size={16} /> Фильтры {active.length > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white px-1 text-[11px] text-brand">{active.length}</span>}
           </button>
         )}
@@ -88,14 +89,14 @@ export function CatalogShell({ facets, defaultSort, showFilters, total, children
         {sheet && (
           <motion.div className="fixed inset-0 z-[80] lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="absolute inset-0 bg-ink/50" onClick={() => setSheet(false)} />
-            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 32, stiffness: 300 }} className="absolute inset-x-0 bottom-0 flex max-h-[92dvh] flex-col rounded-t-3xl bg-white sm:inset-y-0 sm:left-0 sm:right-auto sm:max-h-none sm:w-[88%] sm:max-w-sm sm:rounded-none">
+            <SheetPanel label="Фильтры" onClose={() => setSheet(false)} transition={{ type: "spring", damping: 32, stiffness: 300 }} className="absolute inset-x-0 bottom-0 flex max-h-[92dvh] flex-col rounded-t-3xl bg-white sm:inset-y-0 sm:left-0 sm:right-auto sm:max-h-none sm:w-[88%] sm:max-w-sm sm:rounded-none">
               <div className="flex items-center justify-between border-b border-ink-100 p-4">
                 <span className="text-lg font-bold">Фильтры</span>
                 <button onClick={() => setSheet(false)} className="grid h-10 w-10 place-items-center rounded-full hover:bg-ink-100" aria-label="Закрыть"><X size={20} /></button>
               </div>
               <div className="flex-1 overflow-y-auto p-4"><Filters facets={facets} /></div>
               <div className="border-t border-ink-100 p-4 pb-[max(16px,env(safe-area-inset-bottom))]"><button onClick={() => setSheet(false)} className="btn-primary btn-lg w-full">Показать {total} товаров</button></div>
-            </motion.div>
+            </SheetPanel>
           </motion.div>
         )}
       </AnimatePresence>
@@ -103,7 +104,7 @@ export function CatalogShell({ facets, defaultSort, showFilters, total, children
         {sortSheet && (
           <motion.div className="fixed inset-0 z-[80] md:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="absolute inset-0 bg-ink/50" onClick={() => setSortSheet(false)} />
-            <motion.div role="dialog" aria-label="Сортировка" initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 32, stiffness: 320 }} className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-white p-4 pb-[max(16px,env(safe-area-inset-bottom))]">
+            <SheetPanel label="Сортировка" onClose={() => setSortSheet(false)} transition={{ type: "spring", damping: 32, stiffness: 320 }} className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-white p-4 pb-[max(16px,env(safe-area-inset-bottom))]">
               <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-ink-200" />
               <div className="mb-2 text-lg font-bold">Сортировка</div>
               {SORTS.map(([k, l]) => (
@@ -111,7 +112,7 @@ export function CatalogShell({ facets, defaultSort, showFilters, total, children
                   {l}{sort === k && <Check size={18} />}
                 </button>
               ))}
-            </motion.div>
+            </SheetPanel>
           </motion.div>
         )}
       </AnimatePresence>
@@ -198,6 +199,16 @@ function Toggle({ name, label }: { name: string; label: string }) {
   );
 }
 
+/** Bottom sheet with dialog semantics: Escape, scroll lock, focus in/out. */
+function SheetPanel({ label, onClose, className, transition, children }: { label: string; onClose: () => void; className: string; transition: object; children: ReactNode }) {
+  const ref = useDialog(true, onClose);
+  return (
+    <motion.div ref={ref} role="dialog" aria-modal="true" aria-label={label} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={transition} className={className}>
+      {children}
+    </motion.div>
+  );
+}
+
 function PriceRange({ min, max }: { min: number; max: number }) {
   const sp = useSearchParams();
   const { update } = useContext(NavCtx);
@@ -207,7 +218,12 @@ function PriceRange({ min, max }: { min: number; max: number }) {
     setA(sp.get("min") ?? "");
     setB(sp.get("max") ?? "");
   }, [sp]);
-  const apply = () => update({ min: a.replace(/\D/g, "") || null, max: b.replace(/\D/g, "") || null });
+  const apply = () => {
+    const min = a.replace(/\D/g, "") || null;
+    const max = b.replace(/\D/g, "") || null;
+    if (min === (sp.get("min") || null) && max === (sp.get("max") || null)) return; // nothing changed
+    update({ min, max });
+  };
   return (
     <div>
       <div className="flex items-center gap-2">
@@ -230,7 +246,12 @@ function ModelInput() {
   const sp = useSearchParams();
   const { update } = useContext(NavCtx);
   const [v, setV] = useState(sp.get("model") ?? "");
-  return <input value={v} onChange={(e) => setV(e.target.value)} onBlur={() => update({ model: v.trim() || null })} onKeyDown={(e) => e.key === "Enter" && update({ model: v.trim() || null })} placeholder="Например, Galaxy S25" className="input h-10 text-sm" />;
+  useEffect(() => setV(sp.get("model") ?? ""), [sp]);
+  const apply = () => {
+    const next = v.trim() || null;
+    if (next !== (sp.get("model") || null)) update({ model: next });
+  };
+  return <input aria-label="Модель" value={v} onChange={(e) => setV(e.target.value)} onBlur={apply} onKeyDown={(e) => e.key === "Enter" && apply()} placeholder="Например, Galaxy S25" className="input h-10 text-sm" />;
 }
 
 function Filters({ facets }: { facets: FacetsData }) {

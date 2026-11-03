@@ -1,12 +1,5 @@
-"use client";
-
-import { motion } from "motion/react";
-
-// Smooth page transitions (respects prefers-reduced-motion via MotionConfig)
+// Page transition via CSS (opacity only): content is visible without waiting for hydration,
+// and no transform is left on the wrapper (it would break position:fixed children).
 export default function Template({ children }: { children: React.ReactNode }) {
-  return (
-    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}>
-      {children}
-    </motion.div>
-  );
+  return <div className="animate-page-in">{children}</div>;
 }

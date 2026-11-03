@@ -16,7 +16,7 @@ const config: Config = {
         100: mix("--ink", 6, "rgb(var(--bg))"),
         200: mix("--ink", 12, "rgb(var(--bg))"),
         300: mix("--ink", 22, "rgb(var(--bg))"),
-        400: mix("--ink", 42, "rgb(var(--bg))"),
+        400: mix("--ink", 54, "rgb(var(--bg))"), // ≥4.5:1 on white (WCAG AA text)
         500: mix("--ink", 58, "rgb(var(--bg))"),
         600: mix("--ink", 72, "rgb(var(--bg))"),
         700: mix("--ink", 86, "rgb(var(--bg))"),
@@ -43,6 +43,7 @@ const config: Config = {
       },
       keyframes: {
         shimmer: { "100%": { transform: "translateX(100%)" } },
+        pageIn: { from: { opacity: "0.4" }, to: { opacity: "1" } },
         fadeUp: { from: { opacity: "0", transform: "translateY(8px)" }, to: { opacity: "1", transform: "none" } },
         pop: { "0%": { transform: "scale(1)" }, "40%": { transform: "scale(1.35)" }, "100%": { transform: "scale(1)" } },
         draw: { from: { strokeDashoffset: "var(--len, 2000)" }, to: { strokeDashoffset: "0" } },
@@ -50,6 +51,7 @@ const config: Config = {
       },
       animation: {
         shimmer: "shimmer 1.4s infinite",
+        "page-in": "pageIn .2s ease-out", // no fill-mode: a filled opacity animation would create a stacking context and trap z-index of sheets
         "fade-up": "fadeUp .45s cubic-bezier(.2,.7,.2,1) both",
         pop: "pop .45s ease",
         draw: "draw 1.2s ease-out both",

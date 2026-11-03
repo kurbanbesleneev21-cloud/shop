@@ -134,6 +134,13 @@ export async function markPaymentSucceeded(paymentId: string, meta?: Record<stri
     return true;
   });
   if (!claimed) return p;
+  if (["CANCELLED", "RETURNED"].includes(p.order.status)) {
+    // Paid after the order had been cancelled (open payment page, expiry job): give the money back
+    const r = await refundOrder(p.orderId).catch((e) => ({ refunded: 0, note: (e as Error).message }));
+    await prisma.orderEvent.create({ data: { orderId: p.orderId, status: p.order.status, note: `Оплата пришла после отмены заказа. Возврат: ${r.refunded ? formatPrice(r.refunded) : "не выполнен"} (${r.note})`.slice(0, 500) } });
+    notify("systemError", `⚠️ Заказ №${p.order.number} оплачен после отмены — ${r.refunded ? "деньги возвращены" : "верните деньги вручную"}`);
+    return p;
+  }
   if (["NEW", "CONFIRMED"].includes(p.order.status)) {
     const { changeOrderStatus } = await import("./orders");
     await changeOrderStatus(p.orderId, "PAID", null, `Оплата получена: ${methodDef(p.method)?.label ?? p.method} (${p.provider})`);

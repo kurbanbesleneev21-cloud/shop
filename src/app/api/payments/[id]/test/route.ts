@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { route, ok, body, ApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
-import { markPaymentCanceled, markPaymentSucceeded } from "@/lib/payments";
+import { markPaymentCanceled, markPaymentSucceeded, paymentsCfg } from "@/lib/payments";
 import { luhnValid } from "@/lib/payment-methods";
 import { dbLimit } from "@/lib/rate-limit";
 
@@ -9,6 +9,8 @@ import { dbLimit } from "@/lib/rate-limit";
 export const POST = route<{ id: string }>({}, async (req, { params, ip }) => {
   if (!(await dbLimit("testpay:" + ip, 60, 10 * 60_000))) throw new ApiError(429, "Слишком много попыток");
   const data = await body(req, z.object({ action: z.enum(["pay", "fail"]), card: z.string().max(30).optional(), exp: z.string().max(7).optional(), cvc: z.string().max(4).optional() }));
+  const cfg = await paymentsCfg();
+  if (cfg.provider !== "test") throw new ApiError(404, "Тестовый режим оплаты выключен");
   const p = await prisma.payment.findUnique({ where: { id: params.id } });
   if (!p || p.provider !== "test") throw new ApiError(404, "Платёж не найден");
   if (p.status !== "PENDING") throw new ApiError(409, "Платёж уже обработан");

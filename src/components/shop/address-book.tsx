@@ -15,7 +15,14 @@ export function AddressBook() {
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState("");
 
-  const load = () => api<{ items: SavedAddress[] }>("/api/account/addresses").then((d) => setItems(d.items)).catch(() => setItems([]));
+  const [loadErr, setLoadErr] = useState("");
+  const load = () =>
+    api<{ items: SavedAddress[] }>("/api/account/addresses")
+      .then((d) => {
+        setItems(d.items);
+        setLoadErr("");
+      })
+      .catch((e) => setLoadErr((e as Error).message || "Не удалось загрузить адреса"));
   useEffect(() => {
     load();
   }, []);
@@ -33,6 +40,14 @@ export function AddressBook() {
     }
   }
 
+  if (loadErr && items === null)
+    return (
+      <div role="alert" className="rounded-card bg-ink-50 p-6 text-center">
+        <p className="font-semibold">Не удалось загрузить адреса</p>
+        <p className="mt-1 text-sm text-ink-500">{loadErr}</p>
+        <button onClick={() => load()} className="btn-outline mt-4">Повторить</button>
+      </div>
+    );
   if (items === null) return <div className="skeleton h-32 w-full" />;
   return (
     <div className="space-y-3">
@@ -73,9 +88,9 @@ export function AddressBook() {
           }}
         >
           <div className="grid gap-3 sm:grid-cols-[1fr_2fr_120px]">
-            <div><label className="label">Город</label><input className="input" required value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} autoComplete="address-level2" placeholder="Москва" /></div>
-            <div><label className="label">Улица, дом, квартира</label><input className="input" required value={form.line} onChange={(e) => setForm({ ...form, line: e.target.value })} autoComplete="street-address" /></div>
-            <div><label className="label">Индекс</label><input className="input" inputMode="numeric" value={form.zip} onChange={(e) => setForm({ ...form, zip: e.target.value.replace(/\D/g, "").slice(0, 6) })} autoComplete="postal-code" /></div>
+            <label className="block"><span className="label">Город</span><input className="input" required value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} autoComplete="address-level2" placeholder="Москва" /></label>
+            <label className="block"><span className="label">Улица, дом, квартира</span><input className="input" required value={form.line} onChange={(e) => setForm({ ...form, line: e.target.value })} autoComplete="street-address" /></label>
+            <label className="block"><span className="label">Индекс</span><input className="input" inputMode="numeric" value={form.zip} onChange={(e) => setForm({ ...form, zip: e.target.value.replace(/\D/g, "").slice(0, 6) })} autoComplete="postal-code" /></label>
           </div>
           <div className="flex gap-2">
             <button className="btn-primary" disabled={busy === "add"}>{busy === "add" && <Loader2 size={16} className="animate-spin" />}Сохранить</button>

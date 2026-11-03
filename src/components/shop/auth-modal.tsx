@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2, Mail, ShieldCheck, Truck, X, BadgePercent } from "lucide-react";
 import { useApp, type AuthMode } from "../providers";
 import { api } from "@/lib/client-api";
 import { Logo } from "./logo";
+import { useDialog } from "../use-dialog";
 
 type Field = "name" | "email" | "phone" | "password" | "passwordConfirm" | "agree";
 
@@ -72,16 +73,7 @@ export function AuthModal({ mode, setMode, next, onClose }: { mode: AuthMode; se
     return () => clearTimeout(t);
   }, [cooldown]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [onClose]);
+  const dialogRef = useDialog(true, onClose);
 
   useEffect(() => {
     setErrors({});
@@ -165,6 +157,7 @@ export function AuthModal({ mode, setMode, next, onClose }: { mode: AuthMode; se
     <motion.div className="fixed inset-0 z-[90] flex items-end justify-center sm:items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <div className="absolute inset-0 bg-ink/60 backdrop-blur-[2px]" onClick={onClose} />
       <motion.div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Вход и регистрация"
@@ -399,10 +392,12 @@ export function AuthModal({ mode, setMode, next, onClose }: { mode: AuthMode; se
 }
 
 function Input(props: { label: string; value: string; onChange: (v: string) => void; error?: string; type?: string; autoComplete?: string; placeholder?: string; inputMode?: "email" | "tel" | "text" }) {
+  const id = useId();
   return (
     <div>
-      <label className="label">{props.label}</label>
+      <label className="label" htmlFor={id}>{props.label}</label>
       <input
+        id={id}
         className={`input ${props.error ? "border-ink ring-4 ring-ink/10" : ""}`}
         type={props.type ?? "text"}
         value={props.value}
@@ -410,8 +405,10 @@ function Input(props: { label: string; value: string; onChange: (v: string) => v
         autoComplete={props.autoComplete}
         placeholder={props.placeholder}
         inputMode={props.inputMode}
+        aria-invalid={props.error ? true : undefined}
+        aria-describedby={props.error ? id + "-err" : undefined}
       />
-      {props.error && <p className="mt-1 text-xs font-medium text-ink">{props.error}</p>}
+      {props.error && <p id={id + "-err"} role="alert" className="mt-1 text-xs font-medium text-ink">{props.error}</p>}
     </div>
   );
 }

@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, Camera, Check, Package, Factory, Copy } from "lucide-react";
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { SITE_URL } from "@/lib/site-url";
 import { headers } from "next/headers";
 import { cardSelect } from "@/lib/catalog";
 import { getSettings } from "@/lib/settings";
@@ -37,7 +39,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     description: p.seoDescription || p.shortDescription || undefined,
     keywords: p.keywords || undefined,
     robots: p.status === "PUBLISHED" ? undefined : { index: false },
-    openGraph: { title: p.seoTitle || p.title, description: p.seoDescription || undefined, images: p.images[0]?.url && !p.images[0].url.endsWith(".svg") ? [p.images[0].url] : undefined },
+    alternates: { canonical: `/product/${slug}` },
+    openGraph: {
+      type: "website",
+      url: `/product/${slug}`,
+      locale: "ru_RU",
+      title: p.seoTitle || p.title,
+      description: p.seoDescription || p.shortDescription || undefined,
+      images: p.images[0]?.url && !p.images[0].url.endsWith(".svg") ? [p.images[0].url] : undefined,
+    },
   };
 }
 
@@ -50,7 +60,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const pc = s.product as Record<string, unknown>;
   const sec = s.security as Record<string, unknown>;
 
-  prisma.product.update({ where: { id: p.id }, data: { viewsCount: { increment: 1 } } }).catch(() => undefined);
+  // after(): runs once the response is sent, without being cut off on serverless
+  after(() => prisma.product.update({ where: { id: p.id }, data: { viewsCount: { increment: 1 } } }).catch(() => undefined));
 
   const [reviews, distRaw, similar, together, delivered, myReview] = await Promise.all([
     prisma.review.findMany({ where: { productId: p.id, status: "APPROVED" }, orderBy: { createdAt: "desc" }, take: 100, include: { user: { select: { name: true } } } }),
@@ -112,14 +123,31 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     sku: p.sku,
     brand: p.brand ? { "@type": "Brand", name: p.brand.name } : undefined,
     description: p.shortDescription ?? undefined,
-    image: p.images.map((i) => i.url),
-    offers: { "@type": "Offer", priceCurrency: "RUB", price: p.price, availability: p.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock" },
-    aggregateRating: count ? { "@type": "AggregateRating", ratingValue: avg.toFixed(1), reviewCount: count } : undefined,
+    image: p.images.map((i) => i.url).filter((u) => !u.endsWith(".svg")).map((u) => (u.startsWith("http") ? u : SITE_URL + u)),
+    offers: {
+      "@type": "Offer",
+      url: `${SITE_URL}/product/${p.slug}`,
+      priceCurrency: "RUB",
+      price: p.price,
+      itemCondition: "https://schema.org/NewCondition",
+      availability: p.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      seller: { "@type": "Organization", name: p.seller?.shopName || "TECHMARKET" },
+    },
+    aggregateRating: count ? { "@type": "AggregateRating", ratingValue: Number(avg.toFixed(1)), reviewCount: count } : undefined,
   };
+  const crumbs = [
+    { name: "Главная", url: SITE_URL },
+    { name: "Каталог", url: `${SITE_URL}/catalog` },
+    ...(p.category.parent ? [{ name: p.category.parent.name, url: `${SITE_URL}/catalog/${p.category.parent.slug}` }] : []),
+    { name: p.category.name, url: `${SITE_URL}/catalog/${p.category.slug}` },
+    { name: p.title, url: `${SITE_URL}/product/${p.slug}` },
+  ];
+  const breadcrumbLd = { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: crumbs.map((c, i) => ({ "@type": "ListItem", position: i + 1, name: c.name, item: c.url })) };
 
   return (
     <div className="container-tm pt-4 sm:pt-6">
       <script type="application/ld+json" nonce={(await headers()).get("x-nonce") ?? undefined} dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
+      <script type="application/ld+json" nonce={(await headers()).get("x-nonce") ?? undefined} dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd).replace(/</g, "\\u003c") }} />
       {p.status !== "PUBLISHED" && (
         <div className="mb-4 rounded-card bg-brand px-4 py-3 text-sm font-medium text-white">
           Предварительный просмотр: товар {p.status === "DRAFT" ? "в черновиках" : "скрыт"} и не виден покупателям.

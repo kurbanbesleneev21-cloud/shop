@@ -9,6 +9,7 @@ import { ArrowLeft, Clock, Loader2, Search, X, TrendingUp } from "lucide-react";
 import { useApp } from "../providers";
 import { ProductImage } from "./product-image";
 import { CategoryIcon } from "./category-icon";
+import { useDialog } from "../use-dialog";
 import { cn, formatPrice } from "@/lib/utils";
 import type { NavCategory } from "./header";
 
@@ -38,21 +39,28 @@ function useSuggest(q: string) {
   const [loading, setLoading] = useState(false);
   const ctrl = useRef<AbortController | null>(null);
   useEffect(() => {
+    ctrl.current?.abort();
     if (q.trim().length < 2) {
       setData(null);
+      setLoading(false);
       return;
     }
+    const c = new AbortController();
+    ctrl.current = c;
     const t = setTimeout(async () => {
-      ctrl.current?.abort();
-      ctrl.current = new AbortController();
       setLoading(true);
       try {
-        const r = await fetch(`/api/search/suggest?q=${encodeURIComponent(q.trim())}`, { signal: ctrl.current.signal });
-        if (r.ok) setData(await r.json());
-      } catch {}
-      setLoading(false);
+        const r = await fetch(`/api/search/suggest?q=${encodeURIComponent(q.trim())}`, { signal: c.signal });
+        if (r.ok && !c.signal.aborted) setData(await r.json());
+      } catch {
+        // aborted or offline: suggestions are optional, the full search still works on Enter
+      }
+      if (ctrl.current === c) setLoading(false);
     }, 220);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      c.abort();
+    };
   }, [q]);
   return { data, loading };
 }
@@ -138,7 +146,7 @@ function Field({ q, setQ, loading, dark, autoFocus, onFocus, onBlur, inputRef }:
         onBlur={onBlur}
         autoFocus={autoFocus}
         placeholder="Искать на TECHMARKET"
-        className="h-full min-w-0 flex-1 bg-transparent px-3 text-[16px] text-ink outline-none placeholder:text-ink-400"
+        className="h-full min-w-0 flex-1 bg-transparent px-3 text-[16px] text-ink outline-none placeholder:text-ink-500"
         aria-label="Поиск товаров"
         enterKeyHint="search"
         inputMode="search"
@@ -167,8 +175,19 @@ export function DesktopSearch({ dark, categories }: { dark: boolean; categories:
     go(q);
   };
   return (
-    <form onSubmit={submit} className="relative hidden min-w-0 flex-1 md:flex" role="search">
-      <Field q={q} setQ={(v) => { setQ(v); setOpen(true); }} loading={loading} dark={dark} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)} inputRef={inputRef} />
+    <form
+      onSubmit={submit}
+      className="relative hidden min-w-0 flex-1 md:flex"
+      role="search"
+      onBlur={(e) => {
+        // close only when focus leaves the whole search (keeps suggestions reachable with Tab)
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") setOpen(false);
+      }}
+    >
+      <Field q={q} setQ={(v) => { setQ(v); setOpen(true); }} loading={loading} dark={dark} onFocus={() => setOpen(true)} inputRef={inputRef} />
       <AnimatePresence>
         {open && (
           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.14 }} className="absolute inset-x-0 top-full z-50 mt-2 max-h-[70vh] overflow-y-auto rounded-2xl border border-ink-100 bg-white text-ink shadow-lift empty:hidden">
@@ -210,12 +229,13 @@ function MobileOverlay({ initial, categories, onClose }: { initial: string; cate
   const [q, setQ] = useState(initial);
   const { data, loading } = useSuggest(q);
   const go = useSearchNav();
+  const ref = useDialog(true, onClose, { lockScroll: false });
   const pick = (v: string) => {
     onClose();
     go(v);
   };
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }} transition={{ duration: 0.18 }} className="fixed inset-0 z-[90] flex flex-col bg-white text-ink md:hidden" role="dialog" aria-label="Поиск">
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }} transition={{ duration: 0.18 }} ref={ref} className="fixed inset-0 z-[90] flex flex-col bg-white text-ink md:hidden" role="dialog" aria-modal="true" aria-label="Поиск">
       <form onSubmit={(e) => { e.preventDefault(); pick(q); }} className="flex items-center gap-1 border-b border-ink-100 p-2 pt-[max(8px,env(safe-area-inset-top))]" role="search">
         <button type="button" onClick={onClose} className="grid h-11 w-10 shrink-0 place-items-center rounded-full hover:bg-ink-100" aria-label="Закрыть поиск"><ArrowLeft size={22} /></button>
         <Field q={q} setQ={setQ} loading={loading} autoFocus />

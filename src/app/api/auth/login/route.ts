@@ -11,7 +11,7 @@ export const POST = route({}, async (req, { ip }) => {
   const authCfg = await getGroup<{ maxLoginAttempts: number; lockMinutes: number; sessionDays: number }>("auth");
   if (!(await dbLimit("login-ip:" + ip, sec.authRateLimit, 10 * 60_000))) throw new ApiError(429, "Слишком много попыток входа. Попробуйте позже.");
   const data = await body(req, loginSchema);
-  const key = "login-acc:" + data.email;
+  const key = "login-acc:" + data.email + ":" + ip; // per email+IP, so a stranger cannot lock the owner out
   const allowed = await dbLimit(key, authCfg.maxLoginAttempts, authCfg.lockMinutes * 60_000);
   if (!allowed) throw new ApiError(429, `Вход временно заблокирован на ${authCfg.lockMinutes} мин. из-за неверных попыток.`);
   const user = await prisma.user.findUnique({ where: { email: data.email } });

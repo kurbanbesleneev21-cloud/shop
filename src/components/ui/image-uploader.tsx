@@ -46,6 +46,9 @@ function uploadOne(blob: Blob, name: string, purpose: string, onProgress: (p: nu
       }
     };
     xhr.onerror = () => reject(new Error("Сеть недоступна"));
+    xhr.timeout = 120_000;
+    xhr.ontimeout = () => reject(new Error("Загрузка заняла слишком много времени"));
+    xhr.onabort = () => reject(new Error("Загрузка прервана"));
     xhr.send(fd);
   });
 }
@@ -87,11 +90,14 @@ export function ImageUploader({ value, onChange, max = 15, maxMb = 10, purpose =
         try {
           const blob = await optimize(f);
           const url = await uploadOne(blob, f.name.replace(/\.\w+$/, blob.type === "image/webp" ? ".webp" : "$&"), purpose, (prog) => setPending((x) => x.map((y) => (y.id === id ? { ...y, progress: prog } : y))));
-          if (replaceAt !== undefined) onChange(valueRef.current.map((u, k) => (k === replaceAt ? url : u)));
-          else onChange([...valueRef.current, url]);
+          // update the ref synchronously: parallel uploads must not overwrite each other
+          const next = replaceAt !== undefined ? valueRef.current.map((u, k) => (k === replaceAt ? url : u)) : [...valueRef.current, url];
+          valueRef.current = next;
+          onChange(next);
           setPending((x) => x.filter((y) => y.id !== id));
         } catch (e) {
           setPending((x) => x.map((y) => (y.id === id ? { ...y, error: (e as Error).message } : y)));
+          setErrors((x) => [...x, `${f.name}: ${(e as Error).message}`]);
           setTimeout(() => setPending((x) => x.filter((y) => y.id !== id)), 5000);
         } finally {
           URL.revokeObjectURL(p.preview);

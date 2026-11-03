@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 
 export type BannerData = { id: string; title: string; subtitle: string | null; image: string | null; link: string | null; buttonText: string | null };
 
@@ -19,16 +19,21 @@ export function Hero({ banners: own }: { banners: BannerData[] }) {
   const banners = own.length ? own : DEFAULT_BANNERS;
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [userPaused, setUserPaused] = useState(false);
+  const [first, setFirst] = useState(true); // first slide is rendered without entry animation (mobile LCP)
   const startX = useRef<number | null>(null);
   const n = banners.length;
-  const go = useCallback((d: number) => setI((x) => (x + d + n) % n), [n]);
+  const go = useCallback((d: number) => {
+    setFirst(false);
+    setI((x) => (x + d + n) % n);
+  }, [n]);
 
   useEffect(() => {
-    if (n < 2 || paused) return;
+    if (n < 2 || paused || userPaused) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const t = setInterval(() => go(1), 6500);
     return () => clearInterval(t);
-  }, [n, paused, go]);
+  }, [n, paused, userPaused, go]);
 
   if (!n) return null;
   const b = banners[i];
@@ -37,6 +42,9 @@ export function Hero({ banners: own }: { banners: BannerData[] }) {
       className="relative overflow-hidden rounded-card bg-ink text-white"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={() => setPaused(false)}
+      aria-label="Акции и предложения"
       onTouchStart={(e) => (startX.current = e.touches[0].clientX)}
       onTouchEnd={(e) => {
         if (startX.current == null) return;
@@ -49,7 +57,7 @@ export function Hero({ banners: own }: { banners: BannerData[] }) {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_30%,rgb(var(--brand)/.55),transparent_55%),radial-gradient(circle_at_10%_100%,rgb(var(--brand)/.35),transparent_45%)]" />
       <div className="relative grid min-h-[190px] grid-cols-1 items-center gap-4 p-5 pb-9 sm:min-h-[360px] sm:p-10 md:grid-cols-[1.2fr_1fr] lg:min-h-[400px] lg:p-14">
         <AnimatePresence mode="wait">
-          <motion.div key={b.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.35 }} className="relative z-10 max-w-xl">
+          <motion.div key={b.id} initial={first ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.35 }} className="relative z-10 max-w-xl">
             <h1 className="text-[22px] font-extrabold leading-[1.1] tracking-tight sm:text-4xl lg:text-5xl">{b.title}</h1>
             {b.subtitle && <p className="mt-2 line-clamp-2 text-sm text-white/75 sm:mt-4 sm:text-lg">{b.subtitle}</p>}
             <Link href={b.link || "/catalog"} className="btn-primary mt-4 h-10 text-sm sm:btn-lg sm:mt-8">{b.buttonText || "Перейти к покупкам"} <ChevronRight size={18} /></Link>
@@ -58,7 +66,7 @@ export function Hero({ banners: own }: { banners: BannerData[] }) {
         <AnimatePresence mode="wait">
           {b.image && (
             <motion.div key={b.id + "img"} initial={{ opacity: 0, scale: 0.94, x: 20 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: 0.96 }} transition={{ duration: 0.45 }} className="pointer-events-none relative hidden h-[320px] w-full md:block">
-              <Image src={b.image} alt="" fill priority={i === 0} sizes="(max-width: 768px) 60vw, 40vw" className="rounded-2xl object-contain mix-blend-normal" unoptimized={b.image.endsWith(".svg")} />
+              <Image src={b.image} alt="" fill priority={i === 0} sizes="(min-width: 1024px) 40vw, 50vw" className="rounded-2xl object-contain mix-blend-normal" unoptimized={b.image.endsWith(".svg")} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -67,10 +75,15 @@ export function Hero({ banners: own }: { banners: BannerData[] }) {
         <>
           <button onClick={() => go(-1)} className="absolute left-3 top-1/2 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 backdrop-blur transition hover:bg-white/25 md:grid" aria-label="Предыдущий слайд"><ChevronLeft /></button>
           <button onClick={() => go(1)} className="absolute right-3 top-1/2 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 backdrop-blur transition hover:bg-white/25 md:grid" aria-label="Следующий слайд"><ChevronRight /></button>
-          <div className="absolute bottom-3.5 left-5 flex gap-1.5 sm:bottom-4 sm:left-10 lg:left-14">
+          <div className="absolute bottom-1.5 left-4 flex items-center gap-0.5 sm:bottom-2 sm:left-9 lg:left-[52px]">
             {banners.map((x, k) => (
-              <button key={x.id} onClick={() => setI(k)} className={`h-1.5 rounded-full transition-all duration-300 ${k === i ? "w-8 bg-brand" : "w-3 bg-white/40"}`} aria-label={`Слайд ${k + 1}`} />
+              <button key={x.id} onClick={() => { setFirst(false); setI(k); }} className="grid h-6 min-w-6 place-items-center" aria-label={`Слайд ${k + 1} из ${n}`} aria-current={k === i ? "true" : undefined}>
+                <span className={`h-1.5 rounded-full transition-all duration-300 ${k === i ? "w-8 bg-brand" : "w-3 bg-white/40"}`} />
+              </button>
             ))}
+            <button onClick={() => setUserPaused((v) => !v)} className="ml-1 grid h-6 w-6 place-items-center rounded-full text-white/70 hover:text-white" aria-label={userPaused ? "Включить автопрокрутку" : "Остановить автопрокрутку"} aria-pressed={userPaused}>
+              {userPaused ? <Play size={12} fill="currentColor" /> : <Pause size={12} fill="currentColor" />}
+            </button>
           </div>
         </>
       )}

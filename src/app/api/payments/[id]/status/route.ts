@@ -11,9 +11,11 @@ export const GET = route<{ id: string }>({}, async (_req, { params }) => {
 });
 
 // Retry: create a new payment attempt for the same unpaid order
-export const POST = route<{ id: string }>({}, async (req, { params }) => {
+export const POST = route<{ id: string }>({}, async (req, { params, user }) => {
   const p = await prisma.payment.findUnique({ where: { id: params.id }, include: { order: true } });
   if (!p) throw new ApiError(404, "Платёж не найден");
+  // Orders of registered buyers can only be re-paid by their owner
+  if (p.order.userId && p.order.userId !== user?.id) throw new ApiError(404, "Платёж не найден");
   if (p.order.paymentStatus === "paid") throw new ApiError(409, "Заказ уже оплачен");
   if (p.order.status !== "NEW") throw new ApiError(409, "Заказ нельзя оплатить");
   await prisma.payment.updateMany({ where: { orderId: p.orderId, status: "PENDING" }, data: { status: "CANCELED", error: "Создана новая попытка оплаты" } });

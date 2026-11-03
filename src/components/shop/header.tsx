@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { ChevronRight, Heart, LayoutGrid, LogOut, Package, ShieldCheck, ShoppingCart, Store, User, X, Home } from "lucide-react";
 import { useApp, useHydrated } from "../providers";
 import { Logo } from "./logo";
+import { useDialog } from "../use-dialog";
 import { DesktopSearch, MobileSearch } from "./search";
 import { CategoryIcon } from "./category-icon";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,18 @@ export function Header({ categories, links, topBar }: { categories: NavCategory[
     setMenuOpen(v);
   };
   const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useDialog(profileOpen, () => setProfileOpen(false), { lockScroll: false });
+  useEffect(() => {
+    if (!profileOpen) return;
+    // Click-away via document listener: a fixed overlay inside the blurred header would be clipped
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (profileRef.current?.contains(t) || (t as HTMLElement).closest?.("[aria-haspopup=menu]")) return;
+      setProfileOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [profileOpen, profileRef]);
   const pathname = usePathname();
   const dark = config.headerStyle === "dark";
 
@@ -67,6 +80,8 @@ export function Header({ categories, links, topBar }: { categories: NavCategory[
             <div className="relative">
               <button
                 onClick={() => (user ? setProfileOpen((v) => !v) : openAuth("login"))}
+                aria-haspopup={user ? "menu" : undefined}
+                aria-expanded={user ? profileOpen : undefined}
                 className={cn("flex h-14 min-w-[64px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-[11px] font-medium transition", dark ? "hover:bg-white/10" : "hover:bg-ink-100")}
               >
                 <User size={22} />
@@ -75,8 +90,7 @@ export function Header({ categories, links, topBar }: { categories: NavCategory[
               <AnimatePresence>
                 {profileOpen && user && (
                   <>
-                    <div className="fixed inset-0 z-10" onClick={() => setProfileOpen(false)} />
-                    <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="absolute right-0 top-full z-20 mt-2 w-64 rounded-2xl border border-ink-100 bg-white p-2 text-ink shadow-lift">
+                    <motion.div ref={profileRef} role="menu" aria-label="Меню профиля" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="absolute right-0 top-full z-20 mt-2 w-64 rounded-2xl border border-ink-100 bg-white p-2 text-ink shadow-lift">
                       <div className="px-3 py-2">
                         <div className="font-semibold">{user.name}</div>
                         <div className="truncate text-xs text-ink-500">{user.email}</div>
@@ -120,7 +134,7 @@ function MenuLink({ href, icon, children }: { href: string; icon: React.ReactNod
 
 function IconLink({ href, label, count, children, pulse, dark, cartTarget }: { href: string; label: string; count: number; children: React.ReactNode; pulse?: number; dark?: boolean; cartTarget?: boolean }) {
   return (
-    <Link href={href} className={cn("relative flex h-14 min-w-[64px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-[11px] font-medium transition", dark ? "hover:bg-white/10" : "hover:bg-ink-100")} {...(cartTarget ? { "data-cart-target": "" } : {})}>
+    <Link href={href} aria-label={count > 0 ? `${label}: ${count}` : label} className={cn("relative flex h-14 min-w-[64px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-[11px] font-medium transition", dark ? "hover:bg-white/10" : "hover:bg-ink-100")} {...(cartTarget ? { "data-cart-target": "" } : {})}>
       <span key={pulse} className={pulse ? "animate-pop" : ""}>{children}</span>
       <span>{label}</span>
       {count > 0 && <span key={"c" + count} className="absolute right-2 top-1.5 grid h-[18px] min-w-[18px] animate-pop place-items-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">{count > 99 ? "99+" : count}</span>}
@@ -133,18 +147,13 @@ function IconLink({ href, label, count, children, pulse, dark, cartTarget }: { h
 function MegaMenuPortal({ open, top, categories, onClose }: { open: boolean; top: number; categories: NavCategory[]; onClose: () => void }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
   if (!mounted) return null;
   return createPortal(<AnimatePresence>{open && <MegaMenu categories={categories} onClose={onClose} top={top} />}</AnimatePresence>, document.body);
 }
 
 function MegaMenu({ categories, onClose, top }: { categories: NavCategory[]; onClose: () => void; top: number }) {
   const [active, setActive] = useState(categories[0]?.id);
+  const ref = useDialog(true, onClose);
   const current = categories.find((c) => c.id === active);
   return (
     <>
@@ -154,6 +163,10 @@ function MegaMenu({ categories, onClose, top }: { categories: NavCategory[]; onC
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -10 }}
         transition={{ duration: 0.2 }}
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Каталог товаров"
         style={{ ["--menu-top" as string]: `${top}px` }}
         className="fixed inset-0 z-[60] overflow-y-auto bg-white text-ink md:bottom-auto md:top-[var(--menu-top)] md:max-h-[75vh] md:shadow-lift"
       >
@@ -168,6 +181,7 @@ function MegaMenu({ categories, onClose, top }: { categories: NavCategory[]; onC
                 <Link
                   href={`/catalog/${c.slug}`}
                   onMouseEnter={() => setActive(c.id)}
+                  onFocus={() => setActive(c.id)}
                   className={cn("flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium transition md:py-2.5", active === c.id ? "md:bg-brand-50 md:text-brand" : "hover:bg-ink-50")}
                 >
                   <CategoryIcon name={c.icon} size={20} className="shrink-0 text-brand" />

@@ -8,12 +8,15 @@ import { prisma } from "@/lib/prisma";
 import { Providers } from "@/components/providers";
 import { toPublicConfig } from "@/lib/public-config-server";
 import { FONT_URL, RADIUS, hexToRgbTriplet } from "@/lib/theme";
+import { SITE_URL } from "@/lib/site-url";
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSettings();
   const seo = s.seo as Record<string, string | boolean>;
   const g = s.general as Record<string, string>;
   return {
+    metadataBase: new URL(SITE_URL),
+    twitter: { card: "summary_large_image" },
     title: { default: String(seo.defaultTitle), template: String(seo.titleTemplate || "%s") },
     description: String(seo.defaultDescription),
     keywords: String(seo.keywords),

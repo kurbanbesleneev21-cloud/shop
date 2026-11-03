@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { cloneElement, isValidElement, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { Eye, ExternalLink, Loader2, Plus, Save, Send, Trash2, X, Sparkles } from "lucide-react";
 import { useApp } from "../providers";
 import { ImageUploader } from "../ui/image-uploader";
+import { useDialog } from "../use-dialog";
 import { ProductCard } from "../shop/product-card";
 import { api } from "@/lib/client-api";
 import { cn, discountPercent, formatPrice, slugify } from "@/lib/utils";
@@ -364,8 +365,8 @@ export function ProductEditor({ initial, categories, brands, sellers, mode, maxP
       <AnimatePresence>
         {preview && (
           <motion.div className="fixed inset-0 z-[90] overflow-y-auto bg-ink/60 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setPreview(false)}>
-            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }} onClick={(e) => e.stopPropagation()} className="mx-auto max-w-5xl rounded-3xl bg-white p-5 sm:p-8">
-              <div className="mb-4 flex items-center justify-between"><span className="text-lg font-bold">Предпросмотр карточки</span><button onClick={() => setPreview(false)} className="grid h-10 w-10 place-items-center rounded-full hover:bg-ink-100"><X /></button></div>
+            <PreviewDialog onClose={() => setPreview(false)}>
+              <div className="mb-4 flex items-center justify-between"><span className="text-lg font-bold">Предпросмотр карточки</span><button onClick={() => setPreview(false)} aria-label="Закрыть предпросмотр" className="grid h-10 w-10 place-items-center rounded-full hover:bg-ink-100"><X /></button></div>
               <div className="grid gap-6 md:grid-cols-[220px_1fr]">
                 <div><div className="mb-2 text-xs font-semibold uppercase text-ink-400">В каталоге</div><ProductCard p={card} /></div>
                 <div>
@@ -387,11 +388,20 @@ export function ProductEditor({ initial, categories, brands, sellers, mode, maxP
                   {p.advantages.length > 0 && <ul className="mt-3 list-disc pl-5 text-sm">{p.advantages.map((a) => <li key={a}>{a}</li>)}</ul>}
                 </div>
               </div>
-            </motion.div>
+            </PreviewDialog>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function PreviewDialog({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  const ref = useDialog(true, onClose);
+  return (
+    <motion.div ref={ref} role="dialog" aria-modal="true" aria-label="Предпросмотр карточки" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }} onClick={(e) => e.stopPropagation()} className="mx-auto max-w-5xl rounded-3xl bg-white p-5 sm:p-8">
+      {children}
+    </motion.div>
   );
 }
 
@@ -410,11 +420,17 @@ export function Card({ title, subtitle, children, actions }: { title?: string; s
 }
 
 export function F({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: React.ReactNode }) {
+  const id = useId();
+  // connect the label/error to a single native field child (input/select/textarea)
+  const field = isValidElement(children) && typeof children.type === "string" && ["input", "select", "textarea"].includes(children.type);
+  const control = field
+    ? cloneElement(children as React.ReactElement<Record<string, unknown>>, { id, "aria-invalid": error ? true : undefined, "aria-describedby": error ? id + "-err" : undefined })
+    : children;
   return (
     <div className="min-w-0 flex-1">
-      <div className="mb-1.5 flex items-baseline justify-between gap-2"><label className="text-sm font-medium text-ink-700">{label}</label>{hint && <span className="text-xs text-ink-400">{hint}</span>}</div>
-      {children}
-      {error && <p className="mt-1 text-xs font-semibold">{error}</p>}
+      <div className="mb-1.5 flex items-baseline justify-between gap-2"><label htmlFor={field ? id : undefined} className="text-sm font-medium text-ink-700">{label}</label>{hint && <span className="text-xs text-ink-500">{hint}</span>}</div>
+      {control}
+      {error && <p id={id + "-err"} role="alert" className="mt-1 text-xs font-semibold">{error}</p>}
     </div>
   );
 }

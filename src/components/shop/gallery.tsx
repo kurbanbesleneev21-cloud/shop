@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { ChevronLeft, ChevronRight, Maximize2, X, ZoomIn } from "lucide-react";
 import { ProductImage } from "./product-image";
 import { cn } from "@/lib/utils";
+import { useDialog } from "../use-dialog";
 
 export function Gallery({ images, title }: { images: { url: string; alt: string | null }[]; title: string }) {
   const list = images.length ? images : [{ url: "/products/phone-black-front.svg", alt: title }];
@@ -71,14 +72,14 @@ export function Gallery({ images, title }: { images: { url: string; alt: string 
         <button onClick={(e) => { e.stopPropagation(); setFull(true); }} className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full bg-white/90 shadow-card" aria-label="Полноэкранный просмотр"><Maximize2 size={16} /></button>
         {n > 1 && (
           <div className="absolute inset-x-0 bottom-3 flex justify-center gap-1.5 md:hidden">
-            {list.map((_, k) => <span key={k} className={cn("h-1.5 rounded-full transition-all", k === i ? "w-5 bg-brand" : "w-1.5 bg-ink-300")} />)}
+            {list.map((_, k) => <span aria-hidden="true" key={k} className={cn("h-1.5 rounded-full transition-all", k === i ? "w-5 bg-brand" : "w-1.5 bg-ink-300")} />)}
           </div>
         )}
       </div>
 
       <AnimatePresence>
         {full && (
-          <motion.div className="fixed inset-0 z-[95] flex flex-col bg-ink" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} role="dialog" aria-label="Просмотр фотографий">
+          <FullscreenShell onClose={() => setFull(false)}>
             <div className="flex items-center justify-between p-4 text-white">
               <span className="line-clamp-1 text-sm text-white/70">{title} · {i + 1} из {n}</span>
               <button onClick={() => setFull(false)} className="grid h-11 w-11 place-items-center rounded-full bg-white/10 hover:bg-white/20" aria-label="Закрыть"><X /></button>
@@ -98,14 +99,23 @@ export function Gallery({ images, title }: { images: { url: string; alt: string 
             </div>
             <div className="flex justify-center gap-2 overflow-x-auto p-4">
               {list.map((img, k) => (
-                <button key={k} onClick={() => setI(k)} className={cn("relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 bg-white", k === i ? "border-brand" : "border-transparent opacity-60")}>
+                <button key={k} onClick={() => setI(k)} aria-label={`Фото ${k + 1}`} aria-current={k === i ? "true" : undefined} className={cn("relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 bg-white", k === i ? "border-brand" : "border-transparent opacity-60")}>
                   <ProductImage src={img.url} alt="" sizes="56px" />
                 </button>
               ))}
             </div>
-          </motion.div>
+          </FullscreenShell>
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function FullscreenShell({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  const ref = useDialog(true, onClose);
+  return (
+    <motion.div ref={ref} className="fixed inset-0 z-[95] flex flex-col bg-ink" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} role="dialog" aria-modal="true" aria-label="Просмотр фотографий">
+      {children}
+    </motion.div>
   );
 }

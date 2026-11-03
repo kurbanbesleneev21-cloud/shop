@@ -31,6 +31,8 @@ export function CheckoutView() {
   const [err, setErr] = useState("");
   const [ready, setReady] = useState(false);
   const [saved, setSaved] = useState<SavedAddress[]>([]);
+  const [priceErr, setPriceErr] = useState("");
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -62,8 +64,16 @@ export function CheckoutView() {
   }, [config]);
   useEffect(() => {
     if (!ready || !cart.length) return;
-    api<Priced>("/api/cart/validate", { body: { items: cart.map((c) => ({ productId: c.id, qty: c.qty })), promoCode: promo || undefined, deliveryMethod: delivery } }).then(setPriced).catch(() => undefined);
-  }, [cart, promo, delivery, ready]);
+    let stale = false;
+    setPriced(null); // the pay button stays disabled until the new total is known
+    setPriceErr("");
+    api<Priced>("/api/cart/validate", { body: { items: cart.map((c) => ({ productId: c.id, qty: c.qty })), promoCode: promo || undefined, deliveryMethod: delivery } })
+      .then((r) => !stale && setPriced(r))
+      .catch((e) => !stale && setPriceErr((e as Error).message || "Не удалось рассчитать стоимость"));
+    return () => {
+      stale = true;
+    };
+  }, [cart, promo, delivery, ready, retry]);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -125,9 +135,9 @@ export function CheckoutView() {
         <div className="space-y-5">
           <Block n={1} title="Получатель">
             <div className="grid gap-3 sm:grid-cols-3">
-              <div><label className="label">Имя и фамилия</label><input className="input" required value={form.recipientName} onChange={set("recipientName")} autoComplete="name" /></div>
-              <div><label className="label">Телефон</label><input className="input" required type="tel" value={form.phone} onChange={set("phone")} autoComplete="tel" placeholder="+7 900 000-00-00" /></div>
-              <div><label className="label">Email</label><input className="input" required type="email" value={form.email} onChange={set("email")} autoComplete="email" /></div>
+              <label className="block"><span className="label">Имя и фамилия</span><input className="input" required value={form.recipientName} onChange={set("recipientName")} autoComplete="name" /></label>
+              <label className="block"><span className="label">Телефон</span><input className="input" required type="tel" value={form.phone} onChange={set("phone")} autoComplete="tel" placeholder="+7 900 000-00-00" /></label>
+              <label className="block"><span className="label">Email</span><input className="input" required type="email" value={form.email} onChange={set("email")} autoComplete="email" /></label>
             </div>
           </Block>
           <Block n={2} title="Способ доставки">
@@ -159,8 +169,8 @@ export function CheckoutView() {
             )}
             {delivery !== "pickup" ? (
               <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_2fr]">
-                <div><label className="label">Город</label><input className="input" value={form.city} onChange={set("city")} autoComplete="address-level2" placeholder="Москва" /></div>
-                <div><label className="label">Адрес</label><input className="input" value={form.address} onChange={set("address")} autoComplete="street-address" placeholder="Улица, дом, квартира" /></div>
+                <label className="block"><span className="label">Город</span><input className="input" value={form.city} onChange={set("city")} autoComplete="address-level2" placeholder="Москва" /></label>
+                <label className="block"><span className="label">Адрес</span><input className="input" value={form.address} onChange={set("address")} autoComplete="street-address" placeholder="Улица, дом, квартира" /></label>
               </div>
             ) : (
               <div className="mt-3 flex items-center gap-2 rounded-xl bg-ink-50 p-3 text-sm"><MapPin size={16} className="text-brand" /> Пункт выдачи: {form.city || "Москва"}, ближайший к вам — мы пришлём адрес в SMS</div>
@@ -171,7 +181,7 @@ export function CheckoutView() {
             {config.payments.testMode && methodDef(payment)?.online && (
               <p className="mt-3 flex items-center gap-2 rounded-xl bg-brand-50 p-3 text-xs text-brand"><ShieldCheck size={16} />Платёжная система работает в тестовом режиме: деньги не списываются.</p>
             )}
-            <div className="mt-3"><label className="label">Комментарий к заказу</label><textarea className="textarea min-h-[70px]" value={form.comment} onChange={set("comment")} maxLength={1000} placeholder="Например, позвонить за час до доставки" /></div>
+            <label className="mt-3 block"><span className="label">Комментарий к заказу</span><textarea className="textarea min-h-[70px]" value={form.comment} onChange={set("comment")} maxLength={1000} placeholder="Например, позвонить за час до доставки" /></label>
           </Block>
         </div>
         <aside className="lg:sticky lg:top-32 lg:self-start">
@@ -191,7 +201,8 @@ export function CheckoutView() {
               <span className="text-lg font-bold">К оплате</span>
               <span className="text-2xl font-extrabold">{formatPrice(priced?.total ?? 0, config.currency)}</span>
             </div>
-            {err && <div className="mt-3 rounded-xl border border-ink-200 bg-ink-50 p-3 text-sm font-medium">{err}</div>}
+            {priceErr && <div role="alert" className="mt-3 rounded-xl border border-ink-200 bg-ink-50 p-3 text-sm font-medium">Не удалось рассчитать стоимость: {priceErr}. <button type="button" className="link" onClick={() => setRetry((n) => n + 1)}>Повторить</button></div>}
+            {err && <div role="alert" className="mt-3 rounded-xl border border-ink-200 bg-ink-50 p-3 text-sm font-medium">{err}</div>}
             <button className="btn-primary btn-lg mt-4 w-full" disabled={busy || !priced}>
               {busy ? <Loader2 size={18} className="animate-spin" /> : <Lock size={16} />}
               Перейти к оплате

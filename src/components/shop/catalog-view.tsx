@@ -47,7 +47,7 @@ export async function CatalogView({ slug, searchParams }: { slug?: string; searc
         <CatalogShell facets={facets} defaultSort={cfg.defaultSort} showFilters={cfg.showFilters} total={result.total}>
           {result.items.length ? (
             <>
-              <ProductGrid items={result.items} columns={Number(cfg.columns) || 4} priorityCount={4} />
+              <ProductGrid items={result.items} columns={Number(cfg.columns) || 4} priorityCount={2} />
               <Pagination page={params.page ?? 1} pages={result.pages} />
             </>
           ) : (

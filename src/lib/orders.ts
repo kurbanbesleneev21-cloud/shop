@@ -146,6 +146,7 @@ export async function changeOrderStatus(orderId: string, status: string, actor: 
       },
     });
     await tx.orderEvent.create({ data: { orderId, status: status as never, note: note || null, actorId: actor?.id, actorName: actor?.name } });
+    if (status === "CANCELLED") await tx.payment.updateMany({ where: { orderId, status: { in: ["PENDING", "WAITING"] } }, data: { status: "CANCELED", error: "Заказ отменён" } });
     return u;
   });
   // Payment side effects

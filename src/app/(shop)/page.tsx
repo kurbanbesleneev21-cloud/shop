@@ -1,7 +1,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import { BadgePercent, RotateCcw, ShieldCheck, Truck, Headset, Flame, Sparkles, LayoutGrid, Store, PackageOpen } from "lucide-react";
+import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { SITE_URL } from "@/lib/site-url";
 import { getHomeBlocks } from "@/lib/settings";
 import { homeProducts } from "@/lib/catalog";
 import { getNavCategories } from "@/lib/data";
@@ -10,6 +12,8 @@ import { ProductRail } from "@/components/shop/rail";
 import { CategoryIcon } from "@/components/shop/category-icon";
 import { ProductGrid } from "@/components/shop/product-card";
 import { RecentlyViewed } from "@/components/shop/recent";
+
+export const metadata = { alternates: { canonical: "/" } };
 
 export default async function HomePage() {
   const blocks = (await getHomeBlocks()).filter((b) => b.enabled);
@@ -26,6 +30,19 @@ export default async function HomePage() {
 
   return (
     <div className="container-tm pt-4 sm:pt-6">
+      <script
+        type="application/ld+json"
+        nonce={(await headers()).get("x-nonce") ?? undefined}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@graph": [
+              { "@type": "Organization", name: "TECHMARKET", url: SITE_URL, logo: `${SITE_URL}/favicon.svg` },
+              { "@type": "WebSite", name: "TECHMARKET", url: SITE_URL, inLanguage: "ru", potentialAction: { "@type": "SearchAction", target: `${SITE_URL}/catalog?q={search_term_string}`, "query-input": "required name=search_term_string" } },
+            ],
+          }).replace(/</g, "\\u003c"),
+        }}
+      />
       {blocks.map((b, idx) => {
         switch (b.type) {
           case "hero":
@@ -68,7 +85,7 @@ export default async function HomePage() {
                         {p.subtitle && <div className="mt-2 text-sm text-white/75">{p.subtitle}</div>}
                         <span className="btn mt-5 h-10 bg-white text-sm text-ink group-hover:bg-ink-100">{p.buttonText || "Подробнее"}</span>
                       </div>
-                      {p.image && <Image src={p.image} alt="" width={260} height={260} className="absolute -bottom-6 -right-4 h-[85%] w-auto object-contain transition duration-500 group-hover:scale-105" unoptimized={p.image.endsWith(".svg")} />}
+                      {p.image && <Image src={p.image} alt="" width={260} height={260} sizes="(max-width: 768px) 50vw, 260px" className="absolute -bottom-6 -right-4 h-[85%] w-auto object-contain transition duration-500 group-hover:scale-105" unoptimized={p.image.endsWith(".svg")} />}
                     </Link>
                   ))}
                 </div>
@@ -81,7 +98,7 @@ export default async function HomePage() {
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-6">
                   {brands.map((br) => (
                     <Link key={br.id} href={`/catalog?brand=${br.slug}`} className="grid h-16 place-items-center rounded-card border border-ink-100 bg-white px-3 text-center text-base font-black tracking-tight text-ink transition hover:-translate-y-0.5 hover:border-brand hover:text-brand sm:h-20 sm:text-lg">
-                      {br.logo ? <Image src={br.logo} alt={br.name} width={120} height={40} className="max-h-10 w-auto object-contain" /> : br.name}
+                      {br.logo ? <Image src={br.logo} alt={br.name} width={120} height={40} sizes="120px" className="max-h-10 w-auto object-contain" /> : br.name}
                     </Link>
                   ))}
                 </div>

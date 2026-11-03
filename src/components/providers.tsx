@@ -6,7 +6,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Info, X } from "lucide-react";
 import type { PublicConfig } from "@/lib/public-config";
 import { api } from "@/lib/client-api";
-import { AuthModal } from "./shop/auth-modal";
+import dynamic from "next/dynamic";
+// Loaded on demand: the auth modal is only needed after a click
+const AuthModal = dynamic(() => import("./shop/auth-modal").then((m) => m.AuthModal), { ssr: false });
 
 export type SessionUser = {
   id: string;
@@ -78,13 +80,19 @@ function getCartSnapshot() {
   if (cartCache === null) cartCache = readLS<CartItem[]>("tm_cart", EMPTY_CART);
   return cartCache;
 }
+let cartStorageWarned = false;
 function setCart(update: CartItem[] | ((c: CartItem[]) => CartItem[])) {
   const next = typeof update === "function" ? update(getCartSnapshot()) : update;
   if (next === cartCache) return;
   cartCache = next;
   try {
     localStorage.setItem("tm_cart", JSON.stringify(next));
-  } catch {}
+  } catch {
+    if (!cartStorageWarned && typeof window !== "undefined") {
+      cartStorageWarned = true;
+      window.dispatchEvent(new CustomEvent("tm:toast", { detail: { text: "Корзина не сохраняется на этом устройстве (приватный режим или нет места)", kind: "error" } }));
+    }
+  }
   cartListeners.forEach((l) => l());
 }
 function subscribeCart(l: () => void) {
@@ -119,6 +127,14 @@ export function Providers({ children, config, initialUser, initialFavorites }: {
     setToasts((t) => [...t.slice(-3), { id, text, kind, action }]);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3800);
   }, []);
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ text: string; kind: Toast["kind"] }>).detail;
+      toast(d.text, d.kind);
+    };
+    window.addEventListener("tm:toast", on);
+    return () => window.removeEventListener("tm:toast", on);
+  }, [toast]);
 
   // First-visit registration modal
   useEffect(() => {
@@ -146,7 +162,12 @@ export function Providers({ children, config, initialUser, initialFavorites }: {
   }, []);
 
   const logout = useCallback(async () => {
-    await api("/api/auth/logout", { method: "POST" });
+    try {
+      await api("/api/auth/logout", { method: "POST" });
+    } catch (e) {
+      toast(`Не удалось выйти: ${(e as Error).message}`, "error");
+      return;
+    }
     setUser(null);
     setFavorites(new Set());
     toast("Вы вышли из аккаунта", "info");
@@ -157,6 +178,10 @@ export function Providers({ children, config, initialUser, initialFavorites }: {
   const maxQty = config.cart.maxQtyPerItem || 10;
   const addToCart = useCallback(
     (item: Omit<CartItem, "qty">, qty = 1) => {
+      if (Math.min(maxQty, item.stock) < 1) {
+        toast("Товара нет в наличии", "error");
+        return;
+      }
       setCart((c) => {
         const ex = c.find((x) => x.id === item.id);
         const limit = Math.min(maxQty, Math.max(item.stock, 0));
