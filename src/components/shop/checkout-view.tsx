@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
+import type { SavedAddress } from "./address-book";
 import { Loader2, MapPin, Package, Store, Truck, Lock, ShieldCheck } from "lucide-react";
 import { PaymentPicker } from "./payment-picker";
 import { methodDef } from "@/lib/payment-methods";
@@ -28,7 +30,18 @@ export function CheckoutView() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [ready, setReady] = useState(false);
+  const [saved, setSaved] = useState<SavedAddress[]>([]);
 
+  useEffect(() => {
+    if (!user) return;
+    api<{ items: SavedAddress[] }>("/api/account/addresses")
+      .then((d) => {
+        setSaved(d.items);
+        const def = d.items.find((a) => a.isDefault);
+        if (def) setForm((f) => (f.city || f.address ? f : { ...f, city: def.city, address: def.line }));
+      })
+      .catch(() => undefined);
+  }, [user]);
   useEffect(() => {
     setForm((f) => ({ ...f, recipientName: f.recipientName || user?.name || "", phone: f.phone || user?.phone || "", email: f.email || user?.email || "" }));
   }, [user]);
@@ -58,7 +71,11 @@ export function CheckoutView() {
     e.preventDefault();
     setErr("");
     if (!user && !config.cart.allowGuestCheckout) return openAuth("login", "/checkout");
-    if (delivery !== "pickup" && (!form.city.trim() || !form.address.trim())) return setErr("Укажите город и адрес доставки");
+    if (delivery !== "pickup" && (!form.city.trim() || !form.address.trim())) {
+      setErr("Укажите город и адрес доставки");
+      toast("Укажите город и адрес доставки", "error");
+      return;
+    }
     setBusy(true);
     try {
       const r = await api<{ id: string; number: number; redirectUrl: string | null; online: boolean; paymentError?: string }>("/api/orders", {
@@ -77,6 +94,7 @@ export function CheckoutView() {
       router.refresh();
     } catch (e) {
       setErr((e as Error).message);
+      toast((e as Error).message, "error");
     } finally {
       setBusy(false);
     }
@@ -94,7 +112,7 @@ export function CheckoutView() {
   const deliveryPrice = (m: string) => priced?.deliveryOptions.find((o) => o.method === m)?.price;
 
   return (
-    <form onSubmit={submit} className="container-tm pt-4 sm:pt-6" noValidate>
+    <form id="checkout-form" onSubmit={submit} className="container-tm pb-24 pt-4 sm:pt-6 md:pb-0" noValidate>
       <h1 className="text-2xl font-extrabold sm:text-3xl">Оформление заказа</h1>
       {!user && (
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-card bg-brand-50 p-4 text-sm">
@@ -127,6 +145,18 @@ export function CheckoutView() {
                 );
               })}
             </div>
+            {delivery !== "pickup" && saved.length > 0 && (
+              <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 scrollbar-none sm:mx-0 sm:px-0">
+                {saved.map((a) => {
+                  const on = form.city === a.city && form.address === a.line;
+                  return (
+                    <button type="button" key={a.id} onClick={() => setForm((f) => ({ ...f, city: a.city, address: a.line }))} className={cn("flex max-w-[260px] shrink-0 items-center gap-2 rounded-xl border-2 px-3 py-2 text-left text-sm", on ? "border-brand bg-brand-50" : "border-ink-100")}>
+                      <MapPin size={16} className="shrink-0 text-brand" /><span className="truncate">{a.city}, {a.line}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {delivery !== "pickup" ? (
               <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_2fr]">
                 <div><label className="label">Город</label><input className="input" value={form.city} onChange={set("city")} autoComplete="address-level2" placeholder="Москва" /></div>
@@ -170,6 +200,20 @@ export function CheckoutView() {
           </div>
         </aside>
       </div>
+      {hydrated && createPortal(
+        <div className="fixed inset-x-0 bottom-[60px] z-40 border-t border-ink-100 bg-white/95 px-4 py-2.5 backdrop-blur md:hidden">
+          <div className="flex items-center gap-3">
+            <div>
+              <div className="text-xs text-ink-500">К оплате</div>
+              <div className="text-lg font-extrabold leading-tight">{formatPrice(priced?.total ?? 0, config.currency)}</div>
+            </div>
+            <button form="checkout-form" className="btn-primary ml-auto h-12 flex-1" disabled={busy || !priced}>
+              {busy ? <Loader2 size={18} className="animate-spin" /> : <Lock size={16} />}Оплатить
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
     </form>
   );
 }

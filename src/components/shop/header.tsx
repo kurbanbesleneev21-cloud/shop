@@ -1,19 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronRight, Heart, LayoutGrid, LogOut, Package, Search, ShieldCheck, ShoppingCart, Store, User, X, Home, Loader2 } from "lucide-react";
+import { ChevronRight, Heart, LayoutGrid, LogOut, Package, ShieldCheck, ShoppingCart, Store, User, X, Home } from "lucide-react";
 import { useApp, useHydrated } from "../providers";
 import { Logo } from "./logo";
+import { DesktopSearch, MobileSearch } from "./search";
 import { CategoryIcon } from "./category-icon";
-import { ProductImage } from "./product-image";
-import { cn, formatPrice } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 export type NavCategory = { id: string; name: string; slug: string; icon: string | null; children: { id: string; name: string; slug: string }[] };
-type Suggest = { products: { id: string; title: string; slug: string; price: number; image: string | null }[]; categories: { name: string; slug: string }[] };
 
 export function Header({ categories, links, topBar }: { categories: NavCategory[]; links: { label: string; href: string }[]; topBar?: { text: string; link: string } | null }) {
   const { user, cartCount: rawCount, favorites, openAuth, cartPulse, config, logout } = useApp();
@@ -43,8 +42,8 @@ export function Header({ categories, links, topBar }: { categories: NavCategory[
         </Link>
       )}
       <header ref={headerRef} className={cn("sticky top-0 z-50 border-b", dark ? "border-ink-700 bg-ink text-white" : "border-ink-100 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85")}>
-        <div className="container-tm flex flex-wrap items-center gap-x-2 gap-y-2 py-2.5 sm:gap-x-4 md:h-[72px] md:flex-nowrap md:py-0">
-          <Logo dark={dark} />
+        <div className="container-tm flex items-center gap-2 py-2 sm:gap-x-4 md:h-[72px] md:py-0">
+          <Logo dark={dark} compact />
           <button onClick={() => openMenu(!menuOpen)} className={cn("btn hidden h-11 shrink-0 md:inline-flex", menuOpen ? "bg-brand-600 text-white" : "bg-brand text-white hover:bg-brand-600")} aria-expanded={menuOpen}>
             <span className="relative h-4 w-4">
               <span className={cn("absolute left-0 top-0.5 h-0.5 w-4 rounded bg-white transition", menuOpen && "top-[7px] rotate-45")} />
@@ -53,10 +52,8 @@ export function Header({ categories, links, topBar }: { categories: NavCategory[
             </span>
             Каталог
           </button>
-          <SearchBox dark={dark} />
-          {user?.role === "ADMIN" && (
-            <Link href="/admin" className="btn-dark btn-sm ml-auto shrink-0 md:hidden"><ShieldCheck size={16} />Админка</Link>
-          )}
+          <DesktopSearch dark={dark} categories={categories} />
+          <MobileSearch categories={categories} />
           <nav className="ml-auto hidden items-center gap-1 md:flex">
             {user?.role === "ADMIN" && (
               <Link href="/admin" className={cn("flex h-14 min-w-[64px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-[11px] font-semibold text-brand transition", dark ? "hover:bg-white/10" : "hover:bg-brand-50")}>
@@ -127,90 +124,6 @@ function IconLink({ href, label, count, children, pulse, dark, cartTarget }: { h
       <span>{label}</span>
       {count > 0 && <span key={"c" + count} className="absolute right-2 top-1.5 grid h-[18px] min-w-[18px] animate-pop place-items-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">{count > 99 ? "99+" : count}</span>}
     </Link>
-  );
-}
-
-function SearchBox({ dark }: { dark: boolean }) {
-  const router = useRouter();
-  const sp = useSearchParams();
-  const { config } = useApp();
-  const [q, setQ] = useState(sp.get("q") ?? "");
-  const [open, setOpen] = useState(false);
-  const [data, setData] = useState<Suggest | null>(null);
-  const [loading, setLoading] = useState(false);
-  const ctrl = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    if (q.trim().length < 2) {
-      setData(null);
-      return;
-    }
-    const t = setTimeout(async () => {
-      ctrl.current?.abort();
-      ctrl.current = new AbortController();
-      setLoading(true);
-      try {
-        const r = await fetch(`/api/search/suggest?q=${encodeURIComponent(q.trim())}`, { signal: ctrl.current.signal });
-        if (r.ok) setData(await r.json());
-      } catch {}
-      setLoading(false);
-    }, 220);
-    return () => clearTimeout(t);
-  }, [q]);
-
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    setOpen(false);
-    if (q.trim()) router.push(`/catalog?q=${encodeURIComponent(q.trim())}`);
-  }
-
-  return (
-    <form onSubmit={submit} className="relative order-last w-full min-w-0 md:order-none md:w-auto md:flex-1" role="search">
-      <div className={cn("flex h-11 items-center rounded-btn border-2 transition focus-within:border-brand", dark ? "border-white/20 bg-white" : "border-brand bg-white")}>
-        <input
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 180)}
-          placeholder="Искать на TECHMARKET"
-          className="h-full min-w-0 flex-1 bg-transparent px-3 text-[15px] text-ink outline-none placeholder:text-ink-400"
-          aria-label="Поиск товаров"
-          enterKeyHint="search"
-        />
-        {q && (
-          <button type="button" onClick={() => setQ("")} className="grid h-9 w-9 place-items-center text-ink-400 hover:text-ink" aria-label="Очистить">
-            <X size={16} />
-          </button>
-        )}
-        <button className="mr-0.5 grid h-9 w-11 place-items-center rounded-[calc(var(--radius)*.55)] bg-brand text-white hover:bg-brand-600" aria-label="Найти">
-          {loading ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
-        </button>
-      </div>
-      <AnimatePresence>
-        {open && data && (data.products.length > 0 || data.categories.length > 0) && (
-          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.14 }} className="absolute inset-x-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-ink-100 bg-white text-ink shadow-lift">
-            {data.categories.length > 0 && (
-              <div className="flex flex-wrap gap-2 border-b border-ink-100 p-3">
-                {data.categories.map((c) => (
-                  <Link key={c.slug} href={`/catalog/${c.slug}`} className="chip h-8 text-xs">{c.name}</Link>
-                ))}
-              </div>
-            )}
-            {data.products.map((p) => (
-              <Link key={p.id} href={`/product/${p.slug}`} className="flex items-center gap-3 px-3 py-2 hover:bg-brand-50">
-                <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-ink-50"><ProductImage src={p.image} alt="" sizes="44px" /></span>
-                <span className="line-clamp-1 flex-1 text-sm">{p.title}</span>
-                <span className="text-sm font-bold">{formatPrice(p.price, config.currency)}</span>
-              </Link>
-            ))}
-            <button className="w-full border-t border-ink-100 px-3 py-2.5 text-left text-sm font-semibold text-brand hover:bg-brand-50">Все результаты по запросу «{q}»</button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </form>
   );
 }
 

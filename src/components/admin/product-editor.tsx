@@ -35,6 +35,16 @@ const TABS = [
   ["seo", "SEO"],
 ] as const;
 
+// New products are created through a step-by-step wizard; existing ones are edited with tabs
+const STEPS = [
+  ["main", "Основное", "Название, категория и цена"],
+  ["photos", "Фото", "Покупатели сначала смотрят на фото"],
+  ["description", "Описание", "Расскажите о товаре"],
+  ["specs", "Характеристики", "По ним покупатели фильтруют каталог"],
+  ["review", "Проверка", "Проверьте и опубликуйте"],
+] as const;
+type Step = (typeof TABS)[number][0] | "review";
+
 export function ProductEditor({ initial, categories, brands, sellers, mode, maxPhotos = 15, maxMb = 10, onSaved, notice }: {
   initial: EditorProduct; categories: EditorCategory[]; brands: { id: string; name: string }[]; sellers: { id: string; shopName: string }[] | null;
   mode: "admin" | "seller"; maxPhotos?: number; maxMb?: number; onSaved?: (id: string) => void; notice?: React.ReactNode;
@@ -42,7 +52,9 @@ export function ProductEditor({ initial, categories, brands, sellers, mode, maxP
   const { toast, config } = useApp();
   const router = useRouter();
   const [p, setP] = useState<EditorProduct>(initial);
-  const [tab, setTab] = useState<(typeof TABS)[number][0]>("main");
+  const wizard = !initial.id;
+  const [tab, setTab] = useState<Step>("main");
+  const stepIdx = STEPS.findIndex(([k]) => k === tab);
   const [busy, setBusy] = useState<string>("");
   const [preview, setPreview] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -67,6 +79,25 @@ export function ProductEditor({ initial, categories, brands, sellers, mode, maxP
     setErrors(e);
     if (e.title || e.categoryId || e.price || e.oldPrice) setTab("main");
     return !Object.keys(e).length;
+  }
+
+  function next() {
+    if (tab === "main" && !validate()) {
+      toast("Заполните обязательные поля: название, категорию и цену", "error");
+      return;
+    }
+    const n = STEPS[stepIdx + 1];
+    if (n) {
+      setTab(n[0]);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+  function back() {
+    const n = STEPS[stepIdx - 1];
+    if (n) {
+      setTab(n[0]);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }
 
   function payload(status: EditorProduct["status"]) {
@@ -124,7 +155,26 @@ export function ProductEditor({ initial, categories, brands, sellers, mode, maxP
         {p.id && <Link href={`/product/${p.slug}`} target="_blank" className="btn-outline btn-sm"><ExternalLink size={16} />На сайте</Link>}
       </div>
 
-      <div className="mt-4 flex gap-1 overflow-x-auto border-b border-ink-100 scrollbar-none">
+      {wizard ? (
+        <div className="mt-4">
+          <ol className="flex gap-1.5">
+            {STEPS.map(([k, l], i) => (
+              <li key={k} className="flex-1">
+                <button type="button" onClick={() => (i < stepIdx || (i > stepIdx && (stepIdx > 0 || validate()))) && setTab(k)} className="w-full text-left" aria-current={tab === k ? "step" : undefined}>
+                  <span className={cn("block h-1.5 rounded-full transition-colors", i <= stepIdx ? "bg-brand" : "bg-ink-100")} />
+                  <span className={cn("mt-1.5 hidden text-xs font-semibold sm:block", i === stepIdx ? "text-brand" : i < stepIdx ? "text-ink" : "text-ink-400")}>{i + 1}. {l}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-ink-400">Шаг {stepIdx + 1} из {STEPS.length}</div>
+            <h2 className="text-xl font-extrabold">{STEPS[stepIdx][1]}</h2>
+            <p className="text-sm text-ink-500">{STEPS[stepIdx][2]}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4 flex gap-1 overflow-x-auto border-b border-ink-100 scrollbar-none">
         {TABS.map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} className={cn("relative shrink-0 px-3.5 py-2.5 text-sm font-semibold transition", tab === k ? "text-brand" : "text-ink-500 hover:text-ink")}>
             {l}
@@ -133,6 +183,7 @@ export function ProductEditor({ initial, categories, brands, sellers, mode, maxP
           </button>
         ))}
       </div>
+      )}
 
       <div className="mt-5">
         {tab === "main" && (
@@ -185,8 +236,8 @@ export function ProductEditor({ initial, categories, brands, sellers, mode, maxP
                   </div>
                 </div>
               </Card>
-              <Card title="Публикация и метки">
-                <div className="grid grid-cols-3 gap-2">
+              <Card title={wizard ? "Метки" : "Публикация и метки"}>
+                <div className={cn("grid grid-cols-3 gap-2", wizard && "hidden")}>
                   {(["DRAFT", "PUBLISHED", "HIDDEN"] as const).map((s) => (
                     <button key={s} type="button" onClick={() => set("status", s)} className={cn("rounded-xl border-2 px-2 py-2.5 text-sm font-semibold transition", p.status === s ? "border-brand bg-brand-50 text-brand" : "border-ink-100")}>
                       {s === "DRAFT" ? "Черновик" : s === "PUBLISHED" ? "Опубликован" : "Скрыт"}
@@ -245,6 +296,30 @@ export function ProductEditor({ initial, categories, brands, sellers, mode, maxP
           </Card>
         )}
 
+        {tab === "review" && (
+          <div className="grid gap-5 md:grid-cols-[240px_1fr]">
+            <div className="order-2 mx-auto w-full max-w-[220px] md:order-none md:mx-0"><div className="mb-2 text-xs font-semibold uppercase text-ink-400">Так товар увидят в каталоге</div><ProductCard p={card} /></div>
+            <Card title="Проверка перед публикацией">
+              {[
+                [p.title.trim().length >= 3, "Название", "main"],
+                [Boolean(p.categoryId), "Категория", "main"],
+                [Number(p.price) > 0, "Цена", "main"],
+                [Number(p.stock) > 0, "Остаток на складе больше 0", "main"],
+                [p.images.length > 0, `Фотографии${p.images.length ? ` (${p.images.length})` : ""}`, "photos"],
+                [p.description.trim().length > 30 || p.shortDescription.trim().length > 10, "Описание", "description"],
+                [Object.values(p.specs).filter(Boolean).length >= Math.min(3, tpl.length || 1), "Характеристики", "specs"],
+              ].map(([okv, label, step]) => (
+                <button type="button" key={label as string} onClick={() => setTab(step as Step)} className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-ink-50">
+                  <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold", okv ? "bg-brand text-white" : "bg-ink-100 text-ink-500")}>{okv ? "✓" : "!"}</span>
+                  <span className={cn("flex-1 text-sm", !okv && "text-ink-500")}>{label as string}</span>
+                  {!okv && <span className="text-xs font-semibold text-brand">Заполнить</span>}
+                </button>
+              ))}
+              <p className="text-xs text-ink-500">{mode === "seller" ? "После отправки товар проверит модератор, обычно это занимает до 24 часов." : "Товар сразу появится в каталоге."} SEO-поля заполнятся автоматически, их можно изменить позже.</p>
+            </Card>
+          </div>
+        )}
+
         {tab === "seo" && (
           <div className="grid gap-5 lg:grid-cols-2">
             <Card title="SEO">
@@ -264,12 +339,26 @@ export function ProductEditor({ initial, categories, brands, sellers, mode, maxP
       </div>
 
       <div className={cn("fixed inset-x-0 bottom-0 z-40 border-t border-ink-100 bg-white/95 backdrop-blur", mode === "admin" ? "lg:left-[260px]" : "bottom-[60px] md:bottom-0")}>
+        {wizard ? (
+          <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-3">
+            {stepIdx > 0 ? <button type="button" className="btn-outline" onClick={back}>Назад</button> : <Link href={base} className="btn-ghost">Отмена</Link>}
+            <div className="ml-auto flex gap-2">
+              {stepIdx > 0 && <button type="button" className="btn-outline hidden sm:inline-flex" disabled={!!busy} onClick={() => save("DRAFT")}>{busy === "DRAFT" ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}В черновик</button>}
+              {tab !== "review" ? (
+                <button type="button" className="btn-primary min-w-[120px]" onClick={next}>Далее</button>
+              ) : (
+                <button type="button" className="btn-primary" disabled={!!busy} onClick={() => save("PUBLISHED")}>{busy === "PUBLISHED" ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}{mode === "seller" ? "Отправить на проверку" : "Опубликовать"}</button>
+              )}
+            </div>
+          </div>
+        ) : (
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-end gap-2 px-4 py-3">
           {Object.values(errors).some(Boolean) && <span className="mr-auto text-sm font-medium">Проверьте обязательные поля</span>}
           <button className="btn-outline" onClick={() => setPreview(true)}><Eye size={16} /><span className="hidden sm:inline">Предпросмотр</span></button>
           <button className="btn-outline" disabled={!!busy} onClick={() => save(p.status === "PUBLISHED" ? "PUBLISHED" : p.status)}>{busy && busy !== "PUBLISHED" ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}Сохранить</button>
           {p.status !== "PUBLISHED" && <button className="btn-primary" disabled={!!busy} onClick={() => save("PUBLISHED")}>{busy === "PUBLISHED" ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}{mode === "seller" ? "Отправить на публикацию" : "Опубликовать"}</button>}
         </div>
+        )}
       </div>
 
       <AnimatePresence>

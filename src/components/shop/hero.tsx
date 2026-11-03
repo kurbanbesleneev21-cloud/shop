@@ -8,7 +8,15 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export type BannerData = { id: string; title: string; subtitle: string | null; image: string | null; link: string | null; buttonText: string | null };
 
-export function Hero({ banners }: { banners: BannerData[] }) {
+// Shown until the administrator adds own banners in «Внешний вид → Баннеры»
+const DEFAULT_BANNERS: BannerData[] = [
+  { id: "d1", title: "Электроника по честным ценам", subtitle: "Смартфоны, ноутбуки, наушники и гаджеты от проверенных продавцов", image: null, link: "/catalog", buttonText: "В каталог" },
+  { id: "d2", title: "Оплата по СБП и Kaspi", subtitle: "Быстро и безопасно — без ввода данных карты", image: null, link: "/catalog?discount=1", buttonText: "Смотреть скидки" },
+  { id: "d3", title: "Продавайте на TECHMARKET", subtitle: "Откройте магазин за 5 минут и получайте заказы со всей страны", image: null, link: "/seller/register", buttonText: "Стать продавцом" },
+];
+
+export function Hero({ banners: own }: { banners: BannerData[] }) {
+  const banners = own.length ? own : DEFAULT_BANNERS;
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);
   const startX = useRef<number | null>(null);
@@ -39,12 +47,12 @@ export function Hero({ banners }: { banners: BannerData[] }) {
       aria-roledescription="carousel"
     >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_30%,rgb(var(--brand)/.55),transparent_55%),radial-gradient(circle_at_10%_100%,rgb(var(--brand)/.35),transparent_45%)]" />
-      <div className="relative grid min-h-[300px] grid-cols-1 items-center gap-4 p-6 sm:min-h-[360px] sm:p-10 md:grid-cols-[1.2fr_1fr] lg:min-h-[400px] lg:p-14">
+      <div className="relative grid min-h-[190px] grid-cols-1 items-center gap-4 p-5 pb-9 sm:min-h-[360px] sm:p-10 md:grid-cols-[1.2fr_1fr] lg:min-h-[400px] lg:p-14">
         <AnimatePresence mode="wait">
           <motion.div key={b.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.35 }} className="relative z-10 max-w-xl">
-            <h1 className="text-[28px] font-extrabold leading-[1.08] tracking-tight sm:text-4xl lg:text-5xl">{b.title}</h1>
-            {b.subtitle && <p className="mt-3 text-[15px] text-white/75 sm:mt-4 sm:text-lg">{b.subtitle}</p>}
-            <Link href={b.link || "/catalog"} className="btn-primary btn-lg mt-6 sm:mt-8">{b.buttonText || "Перейти к покупкам"} <ChevronRight size={18} /></Link>
+            <h1 className="text-[22px] font-extrabold leading-[1.1] tracking-tight sm:text-4xl lg:text-5xl">{b.title}</h1>
+            {b.subtitle && <p className="mt-2 line-clamp-2 text-sm text-white/75 sm:mt-4 sm:text-lg">{b.subtitle}</p>}
+            <Link href={b.link || "/catalog"} className="btn-primary mt-4 h-10 text-sm sm:btn-lg sm:mt-8">{b.buttonText || "Перейти к покупкам"} <ChevronRight size={18} /></Link>
           </motion.div>
         </AnimatePresence>
         <AnimatePresence mode="wait">
@@ -59,7 +67,7 @@ export function Hero({ banners }: { banners: BannerData[] }) {
         <>
           <button onClick={() => go(-1)} className="absolute left-3 top-1/2 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 backdrop-blur transition hover:bg-white/25 md:grid" aria-label="Предыдущий слайд"><ChevronLeft /></button>
           <button onClick={() => go(1)} className="absolute right-3 top-1/2 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 backdrop-blur transition hover:bg-white/25 md:grid" aria-label="Следующий слайд"><ChevronRight /></button>
-          <div className="absolute bottom-4 left-6 flex gap-1.5 sm:left-10 lg:left-14">
+          <div className="absolute bottom-3.5 left-5 flex gap-1.5 sm:bottom-4 sm:left-10 lg:left-14">
             {banners.map((x, k) => (
               <button key={x.id} onClick={() => setI(k)} className={`h-1.5 rounded-full transition-all duration-300 ${k === i ? "w-8 bg-brand" : "w-3 bg-white/40"}`} aria-label={`Слайд ${k + 1}`} />
             ))}

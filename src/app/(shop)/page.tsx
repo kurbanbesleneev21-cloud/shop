@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { BadgePercent, RotateCcw, ShieldCheck, Truck, Headset } from "lucide-react";
+import { BadgePercent, RotateCcw, ShieldCheck, Truck, Headset, Flame, Sparkles, LayoutGrid, Store, PackageOpen } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getHomeBlocks } from "@/lib/settings";
 import { homeProducts } from "@/lib/catalog";
@@ -8,11 +8,15 @@ import { getNavCategories } from "@/lib/data";
 import { Hero } from "@/components/shop/hero";
 import { ProductRail } from "@/components/shop/rail";
 import { CategoryIcon } from "@/components/shop/category-icon";
+import { ProductGrid } from "@/components/shop/product-card";
+import { RecentlyViewed } from "@/components/shop/recent";
 
 export default async function HomePage() {
   const blocks = (await getHomeBlocks()).filter((b) => b.enabled);
   const needs = new Set(blocks.map((b) => b.type));
-  const [banners, promos, cats, brands, ...rails] = await Promise.all([
+  const [published, recommended, banners, promos, cats, brands, ...rails] = await Promise.all([
+    prisma.product.count({ where: { status: "PUBLISHED" } }),
+    homeProducts("hits", { limit: 24 }),
     needs.has("hero") ? prisma.banner.findMany({ where: { active: true, position: "HERO" }, orderBy: { sortOrder: "asc" } }) : [],
     needs.has("promo") ? prisma.banner.findMany({ where: { active: true, position: "PROMO" }, orderBy: { sortOrder: "asc" }, take: 3 }) : [],
     needs.has("categories") ? getNavCategories() : [],
@@ -25,18 +29,23 @@ export default async function HomePage() {
       {blocks.map((b, idx) => {
         switch (b.type) {
           case "hero":
-            return <Hero key={b.id} banners={banners} />;
+            return (
+              <div key={b.id}>
+                <Hero banners={banners} />
+                <QuickLinks />
+              </div>
+            );
           case "categories":
             return (
               <section key={b.id} className="mt-8 sm:mt-12">
                 <h2 className="h-section mb-4">{b.title}</h2>
-                <div className="grid grid-cols-3 gap-2 xs:grid-cols-4 sm:grid-cols-5 sm:gap-3 lg:grid-cols-8">
+                <div className="-mx-4 grid auto-cols-[84px] grid-flow-col grid-rows-2 gap-2 overflow-x-auto px-4 pb-1 scrollbar-none sm:mx-0 sm:grid-flow-row sm:grid-cols-5 sm:grid-rows-none sm:gap-3 sm:overflow-visible sm:px-0 lg:grid-cols-8">
                   {cats.filter((c) => c.showOnHome).map((c, i) => (
-                    <Link key={c.id} href={`/catalog/${c.slug}`} className="group flex animate-fade-up flex-col items-center gap-2 rounded-card bg-ink-50 px-2 py-4 text-center transition hover:-translate-y-0.5 hover:bg-brand-50" style={{ animationDelay: `${i * 30}ms` }}>
+                    <Link key={c.id} href={`/catalog/${c.slug}`} className="group flex animate-fade-up flex-col items-center gap-2 rounded-card bg-ink-50 px-1.5 py-3 text-center sm:px-2 sm:py-4 transition hover:-translate-y-0.5 hover:bg-brand-50" style={{ animationDelay: `${i * 30}ms` }}>
                       <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-brand shadow-card transition group-hover:scale-110 group-hover:bg-brand group-hover:text-white sm:h-14 sm:w-14">
                         <CategoryIcon name={c.icon} size={26} />
                       </span>
-                      <span className="text-xs font-semibold leading-tight sm:text-sm">{c.name}</span>
+                      <span className="line-clamp-2 text-[11px] font-semibold leading-tight sm:text-sm">{c.name}</span>
                     </Link>
                   ))}
                 </div>
@@ -106,6 +115,50 @@ export default async function HomePage() {
             return null;
         }
       })}
+      {published === 0 ? (
+        <section className="mt-10 grid place-items-center rounded-card bg-ink-50 px-6 py-14 text-center sm:mt-14">
+          <PackageOpen size={44} className="text-brand" />
+          <h2 className="mt-4 text-xl font-extrabold sm:text-2xl">Скоро здесь появятся товары</h2>
+          <p className="mt-2 max-w-md text-ink-500">Мы готовим витрину. Хотите продавать на TECHMARKET? Откройте магазин — это бесплатно.</p>
+          <Link href="/seller/register" className="btn-primary mt-6"><Store size={18} />Стать продавцом</Link>
+        </section>
+      ) : (
+        <>
+          <RecentlyViewed title="Вы смотрели" />
+          {recommended.length > 0 && (
+            <section className="mt-10 sm:mt-14">
+              <div className="mb-4 flex items-end justify-between gap-4">
+                <h2 className="h-section">Рекомендуем вам</h2>
+                <Link href="/catalog" className="text-sm font-semibold text-brand hover:text-brand-600">Все товары</Link>
+              </div>
+              <ProductGrid items={recommended} columns={5} />
+              {published > recommended.length && (
+                <div className="mt-6 text-center"><Link href="/catalog" className="btn-outline">Показать ещё товары</Link></div>
+              )}
+            </section>
+          )}
+        </>
+      )}
     </div>
+  );
+}
+
+function QuickLinks() {
+  const items = [
+    { href: "/catalog?discount=1", label: "Скидки", icon: BadgePercent },
+    { href: "/catalog?sort=new", label: "Новинки", icon: Sparkles },
+    { href: "/catalog?sort=popular", label: "Хиты продаж", icon: Flame },
+    { href: "/catalog", label: "Все товары", icon: LayoutGrid },
+    { href: "/seller/register", label: "Продавцам", icon: Store },
+  ];
+  return (
+    <nav className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none sm:mx-0 sm:mt-4 sm:px-0" aria-label="Быстрые ссылки">
+      {items.map((i) => (
+        <Link key={i.href} href={i.href} className="chip h-10 shrink-0 gap-2 text-sm font-semibold">
+          <i.icon size={18} className="text-brand" />
+          {i.label}
+        </Link>
+      ))}
+    </nav>
   );
 }

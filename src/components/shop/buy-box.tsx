@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import { Heart, Minus, Plus, ShieldCheck, ShoppingCart, Store, Truck, Zap, RotateCcw } from "lucide-react";
 import { useApp, useHydrated } from "../providers";
 import { cn, discountPercent, formatPrice } from "@/lib/utils";
@@ -21,6 +22,15 @@ export function BuyBox({ p, seller, deliveryText, showSeller, showDelivery }: { 
   const max = Math.min(p.stock, config.cart.maxQtyPerItem);
   const fav = favorites.has(p.id);
   const out = p.stock <= 0;
+  const btnRef = useRef<HTMLDivElement>(null);
+  const [showBar, setShowBar] = useState(false);
+  useEffect(() => {
+    const el = btnRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([e]) => setShowBar(!e.isIntersecting && e.boundingClientRect.top < 0), { threshold: 0 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   useEffect(() => {
     // remember recently viewed products
@@ -61,7 +71,7 @@ export function BuyBox({ p, seller, deliveryText, showSeller, showDelivery }: { 
           </div>
         )}
 
-        <div className="mt-4 grid gap-2">
+        <div ref={btnRef} className="mt-4 grid gap-2">
           <button
             className="btn-primary btn-lg w-full"
             disabled={out}
@@ -108,6 +118,22 @@ export function BuyBox({ p, seller, deliveryText, showSeller, showDelivery }: { 
           <div className="text-right text-sm"><div className="font-bold text-brand">★ {seller.rating.toFixed(1)}</div><div className="text-xs text-ink-500">рейтинг</div></div>
         </Link>
       )}
+      {/* Mobile sticky buy bar (shown after the main buttons scroll out of view); portal avoids transformed ancestors */}
+      {hydrated && createPortal(<div className={cn("fixed inset-x-0 bottom-[60px] z-40 border-t border-ink-100 bg-white/95 px-4 py-2.5 backdrop-blur transition-transform duration-200 md:hidden", showBar ? "translate-y-0" : "pointer-events-none translate-y-[200%]")} aria-hidden={!showBar}>
+        <div className="flex items-center gap-3">
+          <div className="min-w-0">
+            <div className={cn("text-lg font-extrabold leading-tight", disc ? "text-brand" : "text-ink")}>{formatPrice(p.price, config.currency)}</div>
+            {p.oldPrice && p.oldPrice > p.price && <div className="text-xs text-ink-400 line-through">{formatPrice(p.oldPrice, config.currency)}</div>}
+          </div>
+          {inCart ? (
+            <button className="btn-soft ml-auto h-11 flex-1" onClick={() => router.push("/cart")} tabIndex={showBar ? 0 : -1}>В корзине · {inCart.qty} шт.</button>
+          ) : (
+            <button className="btn-primary ml-auto h-11 flex-1" disabled={out} tabIndex={showBar ? 0 : -1} onClick={() => addToCart(item, qty)}>
+              <ShoppingCart size={18} />{out ? "Нет в наличии" : "В корзину"}
+            </button>
+          )}
+        </div>
+      </div>, document.body)}
     </div>
   );
 }

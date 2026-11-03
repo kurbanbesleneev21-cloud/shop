@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useState, useTransition, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronDown, SlidersHorizontal, X, Star } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, SlidersHorizontal, X, Star } from "lucide-react";
 import { cn, formatPrice } from "@/lib/utils";
 
 type Opt = { value: string; label?: string; count: number };
@@ -25,6 +25,7 @@ export function CatalogShell({ facets, defaultSort, showFilters, total, children
   const sp = useSearchParams();
   const [pending, start] = useTransition();
   const [sheet, setSheet] = useState(false);
+  const [sortSheet, setSortSheet] = useState(false);
 
   const update = (patch: Record<string, string | string[] | null>) => {
     const next = new URLSearchParams(sp.toString());
@@ -42,13 +43,21 @@ export function CatalogShell({ facets, defaultSort, showFilters, total, children
 
   return (
     <NavCtx.Provider value={{ pending, update }}>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="sticky top-[57px] z-30 -mx-4 flex items-center gap-2 border-b border-ink-100 bg-white/95 px-4 py-2 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
+        <button onClick={() => setSortSheet(true)} className="chip shrink-0 md:hidden" aria-haspopup="dialog">
+          <ArrowUpDown size={16} /> {SORTS.find(([k]) => k === sort)?.[1] ?? "Сортировка"}
+        </button>
         {showFilters && (
-          <button onClick={() => setSheet(true)} className="chip lg:hidden">
-            <SlidersHorizontal size={16} /> Фильтры {active.length > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-[11px] text-white">{active.length}</span>}
+          <button onClick={() => setSheet(true)} className={cn("chip shrink-0 lg:hidden", active.length > 0 && "chip-active")}>
+            <SlidersHorizontal size={16} /> Фильтры {active.length > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white px-1 text-[11px] text-brand">{active.length}</span>}
           </button>
         )}
-        <div className="-mx-1 flex flex-1 gap-2 overflow-x-auto px-1 scrollbar-none">
+        <div className="-mr-4 flex flex-1 gap-2 overflow-x-auto pr-4 scrollbar-none md:hidden">
+          {([["stock", "В наличии"], ["discount", "Со скидкой"]] as const).map(([k, l]) => (
+            <button key={k} onClick={() => update({ [k]: sp.get(k) === "1" ? null : "1" })} className={cn("chip shrink-0", sp.get(k) === "1" && "chip-active")}>{l}</button>
+          ))}
+        </div>
+        <div className="-mx-1 hidden flex-1 gap-2 overflow-x-auto px-1 scrollbar-none md:flex">
           {SORTS.map(([k, l]) => (
             <button key={k} onClick={() => update({ sort: k === defaultSort ? null : k })} className={cn("chip shrink-0", sort === k && "chip-active")}>{l}</button>
           ))}
@@ -79,13 +88,29 @@ export function CatalogShell({ facets, defaultSort, showFilters, total, children
         {sheet && (
           <motion.div className="fixed inset-0 z-[80] lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="absolute inset-0 bg-ink/50" onClick={() => setSheet(false)} />
-            <motion.div initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ type: "spring", damping: 30, stiffness: 300 }} className="absolute inset-y-0 left-0 flex w-[88%] max-w-sm flex-col bg-white">
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 32, stiffness: 300 }} className="absolute inset-x-0 bottom-0 flex max-h-[92dvh] flex-col rounded-t-3xl bg-white sm:inset-y-0 sm:left-0 sm:right-auto sm:max-h-none sm:w-[88%] sm:max-w-sm sm:rounded-none">
               <div className="flex items-center justify-between border-b border-ink-100 p-4">
                 <span className="text-lg font-bold">Фильтры</span>
                 <button onClick={() => setSheet(false)} className="grid h-10 w-10 place-items-center rounded-full hover:bg-ink-100" aria-label="Закрыть"><X size={20} /></button>
               </div>
               <div className="flex-1 overflow-y-auto p-4"><Filters facets={facets} /></div>
-              <div className="border-t border-ink-100 p-4"><button onClick={() => setSheet(false)} className="btn-primary w-full">Показать {total} товаров</button></div>
+              <div className="border-t border-ink-100 p-4 pb-[max(16px,env(safe-area-inset-bottom))]"><button onClick={() => setSheet(false)} className="btn-primary btn-lg w-full">Показать {total} товаров</button></div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {sortSheet && (
+          <motion.div className="fixed inset-0 z-[80] md:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <div className="absolute inset-0 bg-ink/50" onClick={() => setSortSheet(false)} />
+            <motion.div role="dialog" aria-label="Сортировка" initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 32, stiffness: 320 }} className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-white p-4 pb-[max(16px,env(safe-area-inset-bottom))]">
+              <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-ink-200" />
+              <div className="mb-2 text-lg font-bold">Сортировка</div>
+              {SORTS.map(([k, l]) => (
+                <button key={k} onClick={() => { setSortSheet(false); update({ sort: k === defaultSort ? null : k }); }} className={cn("flex w-full items-center justify-between rounded-xl px-3 py-3.5 text-left text-[15px]", sort === k ? "bg-brand-50 font-semibold text-brand" : "hover:bg-ink-50")}>
+                  {l}{sort === k && <Check size={18} />}
+                </button>
+              ))}
             </motion.div>
           </motion.div>
         )}
