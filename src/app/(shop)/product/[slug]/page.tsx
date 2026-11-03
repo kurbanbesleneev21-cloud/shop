@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, Camera, Check, Package, Factory, Copy } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { headers } from "next/headers";
 import { cardSelect } from "@/lib/catalog";
 import { getSettings } from "@/lib/settings";
 import { getCurrentUser } from "@/lib/session";
@@ -118,7 +119,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   return (
     <div className="container-tm pt-4 sm:pt-6">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
+      <script type="application/ld+json" nonce={(await headers()).get("x-nonce") ?? undefined} dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       {p.status !== "PUBLISHED" && (
         <div className="mb-4 rounded-card bg-brand px-4 py-3 text-sm font-medium text-white">
           Предварительный просмотр: товар {p.status === "DRAFT" ? "в черновиках" : "скрыт"} и не виден покупателям.

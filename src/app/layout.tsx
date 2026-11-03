@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import { headers } from "next/headers";
 import "./globals.css";
 import { getSettings } from "@/lib/settings";
 import { getCurrentUser } from "@/lib/session";
@@ -26,7 +27,8 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#FFFFFF" };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [s, user] = await Promise.all([getSettings(), getCurrentUser()]);
+  const [s, user, h] = await Promise.all([getSettings(), getCurrentUser(), headers()]);
+  const nonce = h.get("x-nonce") ?? undefined;
   const favorites = user ? (await prisma.favorite.findMany({ where: { userId: user.id }, select: { productId: true } })).map((f) => f.productId) : [];
   const d = s.design as Record<string, string | boolean>;
   const font = String(d.font || "Inter");
@@ -54,12 +56,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {children}
         </Providers>
         {/^\d{4,12}$/.test(a.yandexMetrikaId || "") && (
-          <Script id="ym" strategy="afterInteractive">{`(function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};m[i].l=1*new Date();k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})(window,document,"script","https://mc.yandex.ru/metrika/tag.js","ym");ym(${a.yandexMetrikaId},"init",{clickmap:true,trackLinks:true,accurateTrackBounce:true});`}</Script>
+          <Script id="ym" strategy="afterInteractive" nonce={nonce}>{`(function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};m[i].l=1*new Date();k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})(window,document,"script","https://mc.yandex.ru/metrika/tag.js","ym");ym(${a.yandexMetrikaId},"init",{clickmap:true,trackLinks:true,accurateTrackBounce:true});`}</Script>
         )}
         {/^G-[A-Z0-9]{4,15}$/.test(a.googleAnalyticsId || "") && (
           <>
-            <Script src={`https://www.googletagmanager.com/gtag/js?id=${a.googleAnalyticsId}`} strategy="afterInteractive" />
-            <Script id="ga" strategy="afterInteractive">{`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${a.googleAnalyticsId}');`}</Script>
+            <Script src={`https://www.googletagmanager.com/gtag/js?id=${a.googleAnalyticsId}`} strategy="afterInteractive" nonce={nonce} />
+            <Script id="ga" strategy="afterInteractive" nonce={nonce}>{`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${a.googleAnalyticsId}');`}</Script>
           </>
         )}
       </body>
