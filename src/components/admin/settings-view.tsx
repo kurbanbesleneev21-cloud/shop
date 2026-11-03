@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Download } from "lucide-react";
 import { SettingsGroupForm } from "./settings-form";
+import { MaintenancePanel } from "./maintenance";
 import { SETTINGS_GROUPS } from "@/lib/settings-schema";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ export function SettingsView({ values, secrets }: { values: Record<string, Recor
             <a href="/api/admin/backup" className="btn-primary mt-3"><Download size={16} />Скачать резервную копию</a>
           </div>
         )}
+        {g.key === "backup" && <MaintenancePanel />}
       </div>
     </div>
   );

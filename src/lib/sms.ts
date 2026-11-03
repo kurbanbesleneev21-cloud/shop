@@ -2,13 +2,24 @@ import "server-only";
 import { getGroup, getSecret } from "./settings";
 
 export async function smsConfigured() {
-  const cfg = await getGroup<{ provider: string }>("sms");
-  if (cfg.provider !== "smsru") return false;
-  return Boolean(await getSecret("sms", "smsruApiId"));
+  const cfg = await getGroup<{ provider: string; smscLogin: string }>("sms");
+  if (cfg.provider === "smsru") return Boolean(await getSecret("sms", "smsruApiId"));
+  if (cfg.provider === "smsc") return Boolean(cfg.smscLogin && (await getSecret("sms", "smscPassword")));
+  return false;
 }
 
 export async function sendSms(phone: string, text: string) {
-  const cfg = await getGroup<{ provider: string; sender: string }>("sms");
+  const cfg = await getGroup<{ provider: string; sender: string; smscLogin: string }>("sms");
+  if (cfg.provider === "smsc") {
+    const psw = await getSecret("sms", "smscPassword");
+    if (!cfg.smscLogin || !psw) throw new Error("SMS-провайдер не настроен");
+    const params = new URLSearchParams({ login: cfg.smscLogin, psw, phones: phone.replace(/\D/g, ""), mes: text, fmt: "3", charset: "utf-8" });
+    if (cfg.sender) params.set("sender", cfg.sender);
+    const res = await fetch("https://smsc.ru/sys/send.php", { method: "POST", body: params, signal: AbortSignal.timeout(10000) });
+    const data = (await res.json().catch(() => ({}))) as { error?: string; id?: number };
+    if (data.error || !data.id) throw new Error(data.error || "Ошибка отправки SMS");
+    return true;
+  }
   if (cfg.provider === "smsru") {
     const apiId = await getSecret("sms", "smsruApiId");
     if (!apiId) throw new Error("SMS-провайдер не настроен");

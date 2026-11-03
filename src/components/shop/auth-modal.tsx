@@ -44,6 +44,24 @@ export function AuthModal({ mode, setMode, next, onClose }: { mode: AuthMode; se
   const [codeBusy, setCodeBusy] = useState(false);
   const [codeErr, setCodeErr] = useState("");
   const [cooldown, setCooldown] = useState(0);
+  const [sms, setSms] = useState({ code: "", sentTo: "", devCode: "", busy: false, cooldown: 0, error: "" });
+  const smsRequired = config.registration.phoneVerification;
+  useEffect(() => {
+    if (sms.cooldown <= 0) return;
+    const t = setTimeout(() => setSms((x) => ({ ...x, cooldown: x.cooldown - 1 })), 1000);
+    return () => clearTimeout(t);
+  }, [sms.cooldown]);
+  async function requestSms() {
+    const digits = form.phone.replace(/\D/g, "");
+    if (digits.length < 11) return setErrors((e) => ({ ...e, phone: "Введите номер полностью" }));
+    setSms((x) => ({ ...x, busy: true, error: "" }));
+    try {
+      const r = await api<{ sent: boolean; devCode?: string }>("/api/auth/phone-code", { body: { phone: form.phone.replace(/[^\d+]/g, "") } });
+      setSms((x) => ({ ...x, busy: false, sentTo: form.phone, devCode: r.devCode ?? "", cooldown: 60 }));
+    } catch (e) {
+      setSms((x) => ({ ...x, busy: false, error: (e as Error).message }));
+    }
+  }
   const [errors, setErrors] = useState<Partial<Record<Field | "form", string>>>({});
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
@@ -82,6 +100,8 @@ export function AuthModal({ mode, setMode, next, onClose }: { mode: AuthMode; se
       else if (!/^[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё\s'.-]{1,79}$/.test(form.name.trim())) e.name = "Только буквы, пробел и дефис";
       if (form.password && form.passwordConfirm !== form.password) e.passwordConfirm = "Пароли не совпадают";
       if (!agree) e.agree = "Нужно согласие на обработку персональных данных";
+      if (smsRequired && (!sms.sentTo || sms.sentTo !== form.phone)) e.phone = "Подтвердите номер: нажмите «Получить код»";
+      else if (smsRequired && !/^\d{6}$/.test(sms.code)) e.phone = "Введите 6-значный код из SMS";
       if (config.registration.requirePhone && form.phone.replace(/\D/g, "").length < 11) e.phone = "Введите номер полностью";
       if (form.password.length < config.passwordMinLength) e.password = `Минимум ${config.passwordMinLength} символов`;
       else if (!/\d/.test(form.password) || !/[A-Za-zА-Яа-я]/.test(form.password)) e.password = "Пароль должен содержать буквы и цифры";
@@ -98,12 +118,19 @@ export function AuthModal({ mode, setMode, next, onClose }: { mode: AuthMode; se
     setLoading(true);
     try {
       if (mode === "register") {
-        const r = await api<{ user: never; verification: { sent: boolean; devLink?: string; devCode?: string }; next?: string }>("/api/auth/register", {
-          body: { ...form, phone: form.phone.replace(/[^\d+]/g, ""), agree, marketing, accountType },
+        const r = await api<{ user: never; phoneVerified?: boolean; verification: { sent: boolean; devLink?: string; devCode?: string }; next?: string }>("/api/auth/register", {
+          body: { ...form, phone: form.phone.replace(/[^\d+]/g, ""), agree, marketing, accountType, smsCode: sms.code },
         });
         const me = await api<{ user: never }>("/api/auth/me");
         setUser(me.user);
         setCooldown(60);
+        if (r.phoneVerified) {
+          // Phone confirmed by SMS — registration is complete; email can be confirmed later in the profile
+          toast("Регистрация завершена. Номер телефона подтверждён!");
+          router.refresh();
+          if (r.next) { onClose(); router.push(r.next); } else setDone({ kind: "verified" });
+          return;
+        }
         setDone({ kind: "registered", devLink: r.verification.devLink, devCode: r.verification.devCode, sent: r.verification.sent, next: r.next });
         router.refresh();
       } else if (mode === "login") {
@@ -280,7 +307,25 @@ export function AuthModal({ mode, setMode, next, onClose }: { mode: AuthMode; se
                   )}
                   <Input label="Электронная почта" type="email" value={form.email} onChange={(v) => set("email", v)} error={errors.email} autoComplete="email" placeholder="you@mail.ru" inputMode="email" />
                   {mode === "register" && (
-                    <Input label={"Номер телефона" + (config.registration.requirePhone ? "" : " (необязательно)")} type="tel" value={form.phone} onChange={(v) => set("phone", v)} error={errors.phone} autoComplete="tel" placeholder="+7 (900) 000-00-00" inputMode="tel" />
+                    <div>
+                      <label className="label">{"Номер телефона" + (config.registration.requirePhone || smsRequired ? "" : " (необязательно)")}</label>
+                      <div className="flex gap-2">
+                        <input className={`input ${errors.phone ? "border-ink ring-4 ring-ink/10" : ""}`} type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} autoComplete="tel" placeholder="+7 (900) 000-00-00" inputMode="tel" />
+                        {smsRequired && (
+                          <button type="button" onClick={requestSms} disabled={sms.busy || sms.cooldown > 0} className="btn-soft shrink-0 px-3 text-sm">
+                            {sms.busy ? <Loader2 size={16} className="animate-spin" /> : sms.cooldown > 0 ? `${sms.cooldown} с` : sms.sentTo ? "Ещё раз" : "Получить код"}
+                          </button>
+                        )}
+                      </div>
+                      {errors.phone && <p className="mt-1 text-xs font-medium text-ink">{errors.phone}</p>}
+                      {sms.error && <p className="mt-1 text-xs font-medium text-ink">{sms.error}</p>}
+                      {smsRequired && sms.sentTo && sms.sentTo === form.phone && (
+                        <div className="mt-2 space-y-1.5">
+                          <input className="input text-center font-mono text-lg tracking-[0.4em]" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={sms.code} onChange={(e) => { setSms((x) => ({ ...x, code: e.target.value.replace(/\D/g, "").slice(0, 6) })); setErrors((er) => ({ ...er, phone: undefined })); }} placeholder="Код из SMS" aria-label="Код из SMS" />
+                          <p className="text-xs text-ink-500">{sms.devCode ? <>SMS-провайдер ещё не подключён. Демо-режим: код <b className="font-mono text-ink">{sms.devCode}</b></> : `Мы отправили SMS с кодом на ${sms.sentTo}`}</p>
+                        </div>
+                      )}
+                    </div>
                   )}
                   {mode !== "forgot" && (
                     <div>

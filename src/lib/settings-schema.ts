@@ -119,7 +119,7 @@ export const SETTINGS_GROUPS: SettingGroup[] = [
       num("modalDelaySec", "Задержка окна, сек", 3, 0, 60),
       bool("requireEmailVerification", "Требовать подтверждение email для покупок", false),
       bool("requirePhone", "Телефон обязателен", true),
-      bool("phoneVerification", "Подтверждение телефона по SMS", false, "Работает при настроенном SMS-провайдере"),
+      bool("phoneVerification", "Подтверждение телефона SMS-кодом при регистрации", true, "Код приходит на номер, указанный при регистрации"),
     ],
   },
   {
@@ -153,9 +153,12 @@ export const SETTINGS_GROUPS: SettingGroup[] = [
     key: "sms",
     title: "SMS",
     fields: [
-      select("provider", "SMS-провайдер", "none", [["none", "Не подключён"], ["smsru", "SMS.ru"]]),
-      text("sender", "Имя отправителя", ""),
-      secret("smsruApiId", "SMS.ru api_id"),
+      select("provider", "SMS-провайдер", "none", [["none", "Не подключён"], ["smsru", "SMS.ru"], ["smsc", "SMSC.ru"]]),
+      text("sender", "Имя отправителя (согласованное с провайдером)", ""),
+      secret("smsruApiId", "SMS.ru: api_id"),
+      text("smscLogin", "SMSC.ru: логин", ""),
+      secret("smscPassword", "SMSC.ru: пароль"),
+      bool("devShowCode", "Показывать код на экране, пока SMS-провайдер не подключён", true, "Только для запуска и тестов. Отключите после подключения провайдера."),
     ],
   },
   {

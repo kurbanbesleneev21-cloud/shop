@@ -25,6 +25,7 @@ export const registerSchema = z
     marketing: z.boolean().optional().default(false),
     accountType: z.enum(["buyer", "seller"]).optional().default("buyer"),
     website: z.string().max(200).optional().default(""), // honeypot: humans never fill it
+    smsCode: z.string().trim().max(6).optional().default(""),
   })
   .refine((d) => d.password === d.passwordConfirm, { message: "Пароли не совпадают", path: ["passwordConfirm"] });
 
