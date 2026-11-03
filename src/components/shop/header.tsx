@@ -54,6 +54,7 @@ export function Header({ categories, links, topBar }: { categories: NavCategory[
           </button>
           <DesktopSearch dark={dark} categories={categories} />
           <MobileSearch categories={categories} />
+          <button onClick={() => openMenu(!menuOpen)} className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-btn md:hidden", menuOpen ? "bg-brand text-white" : "bg-ink-50 text-ink")} aria-label="Каталог" aria-expanded={menuOpen}><LayoutGrid size={20} /></button>
           <nav className="ml-auto hidden items-center gap-1 md:flex">
             {user?.role === "ADMIN" && (
               <Link href="/admin" className={cn("flex h-14 min-w-[64px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-[11px] font-semibold text-brand transition", dark ? "hover:bg-white/10" : "hover:bg-brand-50")}>
@@ -103,7 +104,7 @@ export function Header({ categories, links, topBar }: { categories: NavCategory[
         
       </header>
       <MegaMenuPortal open={menuOpen} top={menuTop} categories={categories} onClose={() => setMenuOpen(false)} />
-      <MobileNav onCatalog={() => openMenu(true)} />
+      <MobileNav />
     </>
   );
 }
@@ -198,7 +199,7 @@ function MegaMenu({ categories, onClose, top }: { categories: NavCategory[]; onC
   );
 }
 
-function MobileNav({ onCatalog }: { onCatalog: () => void }) {
+function MobileNav() {
   const { cartCount: rawCount, favorites, user, openAuth, cartPulse } = useApp();
   const cartCount = useHydrated() ? rawCount : 0;
   const pathname = usePathname();
@@ -206,7 +207,6 @@ function MobileNav({ onCatalog }: { onCatalog: () => void }) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 flex h-[60px] border-t border-ink-100 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden" aria-label="Мобильная навигация">
       <Link href="/" className={item(pathname === "/")}><Home size={22} />Главная</Link>
-      <button onClick={onCatalog} className={item(pathname.startsWith("/catalog"))}><LayoutGrid size={22} />Каталог</button>
       <Link href="/cart" className={item(pathname === "/cart")} data-cart-target="">
         <span key={cartPulse} className={cartPulse ? "animate-pop" : ""}><ShoppingCart size={22} /></span>Корзина
         {cartCount > 0 && <span className="absolute left-1/2 top-1 ml-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[9px] font-bold text-white">{cartCount}</span>}
