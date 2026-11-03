@@ -11,7 +11,7 @@ export const POST = route({ auth: "admin" }, async (req, { user, ip }) => {
     token: z.string().trim().max(200).optional(),
     chatId: z.string().trim().max(60).optional(),
     enabled: z.boolean().optional(),
-    events: z.record(z.boolean()).optional(),
+    events: z.record(z.string(), z.boolean()).optional(),
     message: z.string().max(1000).optional(),
   }));
   const cfg = await getGroup<{ chatId: string; enabled: boolean }>("telegram");

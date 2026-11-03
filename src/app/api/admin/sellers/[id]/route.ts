@@ -2,7 +2,7 @@ import { z } from "zod";
 import { route, ok, body, ApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/audit";
-import { sendEmail } from "@/lib/email";
+import { h, sendEmail } from "@/lib/email";
 
 export const PATCH = route<{ id: string }>({ auth: "admin" }, async (req, { user, params, ip }) => {
   const data = await body(req, z.object({
@@ -27,7 +27,7 @@ export const PATCH = route<{ id: string }>({ auth: "admin" }, async (req, { user
       prisma.user.update({ where: { id: s.userId }, data: { role: status === "APPROVED" ? (s.user.role === "ADMIN" ? "ADMIN" : "SELLER") : s.user.role === "ADMIN" ? "ADMIN" : "BUYER" } }),
       ...(status === "BLOCKED" ? [prisma.product.updateMany({ where: { sellerId: s.id, status: "PUBLISHED" }, data: { status: "HIDDEN" } })] : []),
     ]);
-    if (data.action === "approve") sendEmail(s.user.email, "Заявка продавца одобрена", "Добро пожаловать на маркетплейс!", `<p>Магазин «${s.shopName}» подключён. Кабинет продавца уже доступен.</p>`).catch(() => undefined);
+    if (data.action === "approve") sendEmail(s.user.email, "Заявка продавца одобрена", "Добро пожаловать на маркетплейс!", `<p>Магазин «${h(s.shopName)}» подключён. Кабинет продавца уже доступен.</p>`).catch(() => undefined);
   }
   await audit(user, `seller.${data.action}`, "seller", s.id, data, ip);
   return ok();

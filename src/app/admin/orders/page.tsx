@@ -9,8 +9,11 @@ import { DELIVERY_LABELS, ORDER_STATUS_LABELS, PAYMENT_LABELS, formatDate, forma
 export const metadata = { title: "Заказы" };
 const PER = 30;
 
+import { expireUnpaidOrders } from "@/lib/payments";
+
 export default async function OrdersAdmin({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
+  await expireUnpaidOrders().catch(() => 0);
   const page = Math.max(1, Number(sp.page) || 1);
   const where: Prisma.OrderWhereInput = {};
   if (sp.q) {

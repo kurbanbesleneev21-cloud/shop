@@ -345,11 +345,33 @@ async function seedCatalog() {
   console.log(`Seeded ${products.length} products, ${orderCount} orders`);
 }
 
+// Demo accounts ship with well-known passwords. Unless DEMO_ACCOUNTS=1, any demo account that still has
+// its default password gets a random one (the admin can set a new password in «Покупатели»).
+async function lockDemoAccounts() {
+  if (process.env.DEMO_ACCOUNTS === "1") return;
+  const { randomBytes } = await import("crypto");
+  const defaults = { "buyer12345": null, "seller12345": null };
+  const users = await prisma.user.findMany({ where: { OR: [{ email: { endsWith: "@techmarket.ru" } }, { email: { endsWith: "@example.com" } }] }, select: { id: true, email: true, passwordHash: true, role: true } });
+  let n = 0;
+  for (const u of users) {
+    if (u.role === "ADMIN") continue;
+    for (const pw of Object.keys(defaults)) {
+      if (await bcrypt.compare(pw, u.passwordHash)) {
+        await prisma.user.update({ where: { id: u.id }, data: { passwordHash: await bcrypt.hash(randomBytes(24).toString("base64url"), 10), tokenVersion: { increment: 1 } } });
+        n++;
+        break;
+      }
+    }
+  }
+  if (n) console.log(`Locked ${n} demo accounts with default passwords`);
+}
+
 async function main() {
   await ensureAdmin();
   const count = await prisma.product.count();
   if (count === 0 && (await prisma.category.count()) === 0) await seedCatalog();
   else console.log("Catalogue already present — skipping demo seed");
+  await lockDemoAccounts();
 }
 
 main()

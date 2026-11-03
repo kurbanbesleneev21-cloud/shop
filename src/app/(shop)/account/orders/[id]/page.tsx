@@ -55,10 +55,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           <div className="space-y-1.5 rounded-card border border-ink-100 p-4 text-sm">
             <div><span className="text-ink-500">Получатель:</span> {o.recipientName}, {o.phone}</div>
             <div><span className="text-ink-500">Доставка:</span> {DELIVERY_LABELS[o.deliveryMethod]}{o.address ? `, ${o.city}, ${o.address}` : ""}</div>
-            <div><span className="text-ink-500">Оплата:</span> {PAYMENT_LABELS[o.paymentMethod]} · {o.paymentStatus === "paid" ? "оплачено" : "ожидает оплаты"}</div>
+            <div><span className="text-ink-500">Оплата:</span> {PAYMENT_LABELS[o.paymentMethod]} · {o.paymentStatus === "paid" ? "оплачено" : o.paymentStatus === "refunded" ? "деньги возвращены" : "ожидает оплаты"}</div>
+            {o.trackingNumber && <div><span className="text-ink-500">Трек-номер:</span> <b>{o.trackingNumber}</b></div>}
             {o.comment && <div><span className="text-ink-500">Комментарий:</span> {o.comment}</div>}
           </div>
-          <OrderActions id={o.id} status={o.status} />
+          <OrderActions id={o.id} status={o.status} paymentStatus={o.paymentStatus} paymentMethod={o.paymentMethod} />
         </div>
       </div>
     </div>

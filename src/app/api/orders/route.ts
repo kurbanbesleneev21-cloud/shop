@@ -4,6 +4,8 @@ import { checkoutSchema } from "@/lib/validation";
 import { priceCart, commissionRate, afterOrderCreated } from "@/lib/orders";
 import { getGroup } from "@/lib/settings";
 import { dbLimit } from "@/lib/rate-limit";
+import { createPayment, expireUnpaidOrders, paymentsCfg } from "@/lib/payments";
+import { methodDef } from "@/lib/payment-methods";
 
 export const GET = route({ auth: "user" }, async (_req, { user }) => {
   const orders = await prisma.order.findMany({ where: { userId: user!.id }, orderBy: { createdAt: "desc" }, include: { items: true } });
@@ -17,8 +19,11 @@ export const POST = route({}, async (req, { user, ip }) => {
   const reg = await getGroup<{ requireEmailVerification: boolean }>("registration");
   if (!user && !cartCfg.allowGuestCheckout) throw new ApiError(401, "Войдите, чтобы оформить заказ");
   if (user && reg.requireEmailVerification && !user.emailVerified) throw new ApiError(403, "Подтвердите email в личном кабинете, чтобы оформить заказ");
-  const payments = await getGroup<Record<string, boolean | string>>("payments");
-  if (!payments[data.paymentMethod]) throw new ApiError(400, "Этот способ оплаты недоступен");
+  const payments = await paymentsCfg();
+  const def = methodDef(data.paymentMethod);
+  if (!def || payments[data.paymentMethod] === false || (payments[data.paymentMethod] === undefined && !def.defaultEnabled)) throw new ApiError(400, "Этот способ оплаты недоступен");
+  if (data.paymentMethod === "invoice" && (!data.companyName || !data.companyInn)) throw new ApiError(400, "Для оплаты по счёту укажите название организации и ИНН");
+  expireUnpaidOrders().catch(() => undefined);
   if (data.deliveryMethod !== "pickup" && (!data.city || !data.address)) throw new ApiError(400, "Укажите город и адрес доставки");
 
   const priced = await priceCart(data.items, data.promoCode || undefined, data.deliveryMethod);
@@ -35,7 +40,10 @@ export const POST = route({}, async (req, { user, ip }) => {
       return { productId: l.productId, sellerId: l.sellerId, title: l.title, sku: l.sku, image: l.image, price: l.price, qty: l.qty, commissionRate: rate, commission: Math.round((l.price * l.qty * rate) / 100) };
     }),
   );
-  const instantPaid = payments.provider === "test" && (data.paymentMethod === "card" || data.paymentMethod === "sbp");
+  if ((data.paymentMethod === "installments" || data.paymentMethod === "credit") && priced.total < Number(payments.creditMinAmount || 0))
+    throw new ApiError(400, `${def.label}: доступно для заказов от ${payments.creditMinAmount} ₽`);
+  if (!def.online && data.paymentMethod !== "invoice" && Number(payments.cashMaxAmount) > 0 && priced.total > Number(payments.cashMaxAmount))
+    throw new ApiError(400, `Оплата при получении доступна для заказов до ${payments.cashMaxAmount} ₽`);
 
   const order = await prisma.$transaction(async (tx) => {
     for (const it of items) {
@@ -43,15 +51,18 @@ export const POST = route({}, async (req, { user, ip }) => {
       if (res.count === 0) throw new ApiError(409, `Недостаточно товара «${it.title}» на складе`);
     }
     if (priced.promo) {
-      const pc = await tx.promoCode.findUnique({ where: { id: priced.promo.id } });
-      if (pc?.maxUses != null && pc.usedCount >= pc.maxUses) throw new ApiError(409, "Лимит промокода исчерпан");
-      await tx.promoCode.update({ where: { id: priced.promo.id }, data: { usedCount: { increment: 1 } } });
+      // Atomic check-and-increment: concurrent checkouts cannot exceed maxUses
+      const used = await tx.$executeRaw`UPDATE "PromoCode" SET "usedCount" = "usedCount" + 1
+        WHERE id = ${priced.promo.id} AND active = true AND ("maxUses" IS NULL OR "usedCount" < "maxUses")`;
+      if (used === 0) throw new ApiError(409, "Лимит промокода исчерпан");
     }
     return tx.order.create({
       data: {
         userId: user?.id ?? null,
-        status: instantPaid ? "PAID" : "NEW",
-        paymentStatus: instantPaid ? "paid" : "pending",
+        status: "NEW",
+        paymentStatus: "pending",
+        companyName: data.paymentMethod === "invoice" ? data.companyName : null,
+        companyInn: data.paymentMethod === "invoice" ? data.companyInn : null,
         subtotal: priced.subtotal,
         discount: priced.discount,
         deliveryPrice: priced.deliveryPrice,
@@ -67,10 +78,17 @@ export const POST = route({}, async (req, { user, ip }) => {
         address: data.address || null,
         comment: data.comment || null,
         items: { create: items },
-        events: { create: [{ status: "NEW", note: "Заказ оформлен" }, ...(instantPaid ? [{ status: "PAID" as const, note: "Оплата подтверждена (тестовый режим)" }] : [])] },
+        events: { create: [{ status: "NEW", note: `Заказ оформлен · оплата: ${def.label}` }] },
       },
     });
   });
   await afterOrderCreated(order.id, req.nextUrl.origin).catch((e) => console.error(e));
-  return ok({ ok: true, id: order.id, number: order.number, paid: instantPaid });
+  let redirectUrl: string | null = null;
+  let paymentError: string | undefined;
+  try {
+    redirectUrl = (await createPayment(order.id, req.nextUrl.origin)).redirectUrl;
+  } catch (e) {
+    paymentError = (e as Error).message;
+  }
+  return ok({ ok: true, id: order.id, number: order.number, redirectUrl, online: def.online, paymentError });
 });

@@ -27,6 +27,8 @@ export function Reviews({ productId, reviews, avg, count, dist, canReview, photo
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [complainId, setComplainId] = useState<string | null>(null);
+  const [complainText, setComplainText] = useState("");
 
   const list = useMemo(() => {
     let l = [...reviews];
@@ -53,13 +55,16 @@ export function Reviews({ productId, reviews, avg, count, dist, canReview, photo
     }
   }
 
-  async function complain(id: string) {
+  function complain(id: string) {
     if (!user) return openAuth("login");
-    const reason = prompt("Опишите причину жалобы (спам, оскорбления, не относится к товару…)");
-    if (!reason) return;
+    setComplainId(complainId === id ? null : id);
+    setComplainText("");
+  }
+  async function sendComplaint(id: string) {
     try {
-      await api(`/api/reviews/${id}/complaint`, { body: { reason } });
+      await api(`/api/reviews/${id}/complaint`, { body: { reason: complainText } });
       toast("Жалоба отправлена модератору", "info");
+      setComplainId(null);
     } catch (e) {
       toast((e as Error).message, "error");
     }
@@ -168,6 +173,12 @@ export function Reviews({ productId, reviews, avg, count, dist, canReview, photo
                   {r.cons && <p><span className="font-semibold">Недостатки: </span>{r.cons}</p>}
                   <p className="whitespace-pre-line text-ink-700">{r.text}</p>
                 </div>
+                {complainId === r.id && (
+                  <div className="mt-3 flex gap-2">
+                    <input className="input h-10 text-sm" placeholder="Причина: спам, оскорбления, не о товаре…" value={complainText} onChange={(e) => setComplainText(e.target.value)} maxLength={500} />
+                    <button className="btn-dark btn-sm shrink-0" disabled={complainText.trim().length < 3} onClick={() => sendComplaint(r.id)}>Отправить</button>
+                  </div>
+                )}
                 {r.photos.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {r.photos.map((ph, i) => (

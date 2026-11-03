@@ -6,12 +6,13 @@ import { DELIVERY_LABELS, PAYMENT_LABELS, formatDate, formatPrice } from "@/lib/
 import { StatusBadge, Timeline } from "@/components/shop/order-bits";
 import { OrderAdminActions } from "@/components/admin/order-admin-actions";
 import { STATUS_FLOW } from "@/lib/orders";
+import { PAYMENT_STATUS_LABELS } from "@/lib/payment-methods";
 
 export const metadata = { title: "Заказ" };
 
 export default async function OrderAdmin({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const o = await prisma.order.findUnique({ where: { id }, include: { items: { include: { seller: { select: { id: true, shopName: true } }, product: { select: { id: true } } } }, events: { orderBy: { createdAt: "asc" } }, user: { select: { id: true, name: true, email: true, createdAt: true, _count: { select: { orders: true } } } } } });
+  const o = await prisma.order.findUnique({ where: { id }, include: { items: { include: { seller: { select: { id: true, shopName: true } }, product: { select: { id: true } } } }, events: { orderBy: { createdAt: "asc" } }, payments: { orderBy: { createdAt: "desc" } }, user: { select: { id: true, name: true, email: true, createdAt: true, _count: { select: { orders: true } } } } } });
   if (!o) notFound();
   return (
     <div>
@@ -45,7 +46,24 @@ export default async function OrderAdmin({ params }: { params: Promise<{ id: str
           <div className="rounded-card bg-white p-5 shadow-card"><h2 className="mb-4 font-bold">История изменений</h2><Timeline events={o.events} /></div>
         </div>
         <div className="space-y-5">
-          <OrderAdminActions id={o.id} status={o.status} next={STATUS_FLOW[o.status] ?? []} paymentStatus={o.paymentStatus} />
+          <OrderAdminActions id={o.id} status={o.status} next={STATUS_FLOW[o.status] ?? []} paymentStatus={o.paymentStatus} tracking={o.trackingNumber} total={o.total} />
+          <div className="rounded-card bg-white p-5 text-sm shadow-card">
+            <h2 className="mb-2 font-bold">Платежи</h2>
+            {o.payments.length ? (
+              <ul className="space-y-2">
+                {o.payments.map((p) => (
+                  <li key={p.id} className="rounded-lg bg-ink-50 p-2.5">
+                    <div className="flex justify-between gap-2"><b>{PAYMENT_LABELS[p.method] ?? p.method}</b><span>{formatPrice(p.amount)}</span></div>
+                    <div className="text-xs text-ink-500">{PAYMENT_STATUS_LABELS[p.status] ?? p.status} · {p.provider}{p.externalId ? ` · ${p.externalId}` : ""} · {formatDate(p.createdAt, true)}</div>
+                    {p.refundedAmount > 0 && <div className="text-xs">Возвращено: {formatPrice(p.refundedAmount)}</div>}
+                    {p.error && <div className="text-xs text-ink-500">{p.error}</div>}
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="text-ink-500">Платежей нет</p>}
+            {o.paymentMethod === "invoice" && <a href={`/pay/invoice/${o.id}`} target="_blank" className="link mt-2 inline-block">Счёт на оплату →</a>}
+            {o.companyName && <div className="mt-2">Покупатель-юрлицо: {o.companyName}, ИНН {o.companyInn}</div>}
+          </div>
           <div className="space-y-2 rounded-card bg-white p-5 text-sm shadow-card">
             <h2 className="mb-2 font-bold">Покупатель</h2>
             <div>{o.recipientName}</div>

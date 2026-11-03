@@ -12,7 +12,7 @@ const ALLOWED = new Set(["jpeg", "png", "webp", "avif", "heif"]);
  * (cloud storage) — or in PostgreSQL when Blob is not configured.
  */
 export async function saveImage(buf: Buffer, opts: { maxSide: number; ownerId?: string; folder?: string }) {
-  let meta: sharp.Metadata;
+  let meta: Awaited<ReturnType<ReturnType<typeof sharp>["metadata"]>>;
   try {
     meta = await sharp(buf, { failOn: "error", limitInputPixels: 80_000_000 }).metadata();
   } catch {

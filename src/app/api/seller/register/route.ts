@@ -9,6 +9,7 @@ import { audit } from "@/lib/audit";
 export const POST = route({ auth: "user" }, async (req, { user, ip }) => {
   const cfg = await getGroup<{ allowRegistration: boolean; autoApprove: boolean }>("sellers");
   if (!cfg.allowRegistration) throw new ApiError(403, "Приём заявок продавцов временно закрыт");
+  if (!user!.emailVerified && user!.role !== "ADMIN") throw new ApiError(403, "Сначала подтвердите email в личном кабинете — это обязательно для продавцов");
   const data = await body(req, z.object({ shopName: z.string().trim().min(2, "Укажите название магазина").max(100), legalName: z.string().trim().max(200).optional(), inn: z.string().trim().regex(/^(\d{10}|\d{12})?$/, "ИНН — 10 или 12 цифр").optional(), phone: z.string().trim().max(30).optional(), description: z.string().trim().max(2000).optional() }));
   const existing = await prisma.seller.findUnique({ where: { userId: user!.id } });
   if (existing && existing.status !== "REJECTED") throw new ApiError(409, "Заявка уже подана");

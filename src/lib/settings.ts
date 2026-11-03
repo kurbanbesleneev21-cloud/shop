@@ -93,7 +93,13 @@ function coerce(groupKey: string, input: Record<string, unknown>) {
               .slice(0, 30)
           : f.default;
         break;
-      case "image":
+      case "image": {
+        const s = String(v ?? "").trim();
+        // Only own/uploaded images are accepted (blocks javascript:, data:, tracking pixels etc.)
+        const ok = !s || s.startsWith("/products/") || s.startsWith("/api/media/") || /^\/[a-z0-9._-]+\.(svg|png|webp|jpg|jpeg|ico)$/i.test(s) || /^https:\/\/[a-z0-9.-]+\.public\.blob\.vercel-storage\.com\//i.test(s);
+        out[f.key] = ok ? s.slice(0, 500) : "";
+        break;
+      }
       case "text":
       case "textarea":
       default:

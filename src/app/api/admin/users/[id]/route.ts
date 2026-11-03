@@ -2,6 +2,8 @@ import { z } from "zod";
 import { route, ok, body, ApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/audit";
+import bcrypt from "bcryptjs";
+import { passwordSchema } from "@/lib/validation";
 
 export const PATCH = route<{ id: string }>({ auth: "admin" }, async (req, { user, params, ip }) => {
   const data = await body(req, z.object({
@@ -12,6 +14,7 @@ export const PATCH = route<{ id: string }>({ auth: "admin" }, async (req, { user
     blockReason: z.string().trim().max(300).optional().nullable(),
     verifyEmail: z.boolean().optional(),
     logoutEverywhere: z.boolean().optional(),
+    newPassword: passwordSchema.optional(),
   }));
   const u = await prisma.user.findUnique({ where: { id: params.id } });
   if (!u) throw new ApiError(404, "Пользователь не найден");
@@ -24,9 +27,11 @@ export const PATCH = route<{ id: string }>({ auth: "admin" }, async (req, { user
       ...(data.role ? { role: data.role } : {}),
       ...(data.blocked !== undefined ? { blocked: data.blocked, blockReason: data.blocked ? data.blockReason ?? null : null, tokenVersion: data.blocked ? { increment: 1 } : undefined } : {}),
       ...(data.verifyEmail ? { emailVerified: new Date() } : {}),
-      ...(data.logoutEverywhere ? { tokenVersion: { increment: 1 } } : {}),
+      ...(data.logoutEverywhere || data.newPassword ? { tokenVersion: { increment: 1 } } : {}),
+      ...(data.newPassword ? { passwordHash: await bcrypt.hash(data.newPassword, 12) } : {}),
     },
   });
-  await audit(user, "user.update", "user", u.id, data, ip);
+  const { newPassword: _np, ...logged } = data;
+  await audit(user, "user.update", "user", u.id, { ...logged, passwordChanged: Boolean(data.newPassword) }, ip);
   return ok();
 });

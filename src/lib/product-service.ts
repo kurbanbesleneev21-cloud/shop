@@ -8,6 +8,7 @@ import { slugify } from "./utils";
 import { getGroup } from "./settings";
 import { notify, esc } from "./telegram";
 import { audit } from "./audit";
+import { isAllowedImageUrl as allowedImage } from "./url-safety";
 
 async function uniqueSlug(base: string, excludeId?: string) {
   let slug = slugify(base);
@@ -31,9 +32,6 @@ async function uniqueSku(sku: string | undefined, excludeId?: string) {
   }
 }
 
-function allowedImage(url: string) {
-  return url.startsWith("/products/") || url.startsWith("/api/media/") || /^https:\/\/[a-z0-9.-]+\.public\.blob\.vercel-storage\.com\//.test(url) || /^https:\/\/images\.unsplash\.com\//.test(url);
-}
 
 export async function saveProduct(input: ProductInput, user: CurrentUser, id?: string, ip?: string) {
   const isAdmin = user.role === "ADMIN";

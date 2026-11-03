@@ -4,8 +4,9 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "./prisma";
 import { slugify } from "./utils";
 import { safeHref } from "./settings";
+import { isAllowedImageUrl } from "./url-safety";
 
-const img = z.string().trim().max(1000).optional().nullable().transform((v) => (v ? v : null));
+const img = z.string().trim().max(1000).optional().nullable().transform((v) => (v ? v : null)).refine((v) => !v || isAllowedImageUrl(v), "Изображение должно быть загружено через менеджер изображений");
 const link = z.string().trim().max(300).optional().nullable().transform((v) => (v ? safeHref(v) || null : null));
 const optDate = z.string().optional().nullable().transform((v) => (v ? new Date(v) : null));
 

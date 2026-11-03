@@ -4,8 +4,9 @@ import { prisma } from "./prisma";
 import { getGroup, getSecret, parseCategoryRates } from "./settings";
 import { ApiError } from "./api";
 import { notify, esc } from "./telegram";
-import { sendEmail, button } from "./email";
+import { sendEmail, button, h } from "./email";
 import { formatPrice, ORDER_STATUS_LABELS } from "./utils";
+import { assertPublicHttpsUrl } from "./url-safety";
 
 export type PricedLine = { productId: string; title: string; sku: string; image: string | null; price: number; oldPrice: number | null; qty: number; stock: number; sellerId: string | null; categoryId: string; categorySlug: string; slug: string; available: boolean };
 
@@ -91,18 +92,24 @@ export async function afterOrderCreated(orderId: string, origin: string) {
   notify("newOrder", `🛒 <b>Новый заказ №${order.number}</b>\n${lines}\n\nИтого: <b>${formatPrice(order.total)}</b>\nПокупатель: ${esc(order.recipientName)}, ${esc(order.phone)}\nОплата: ${esc(order.paymentMethod)} · Доставка: ${esc(order.deliveryMethod)}`);
   const n = await getGroup<{ emailOnOrder: boolean; lowStockThreshold: number }>("notifications");
   if (n.emailOnOrder) {
-    await sendEmail(order.email, `Заказ №${order.number} оформлен`, `Спасибо за заказ №${order.number}!`, `<p>Мы получили ваш заказ на сумму <b>${formatPrice(order.total)}</b>.</p><p>${order.items.map((i) => `${i.title} × ${i.qty}`).join("<br/>")}</p>${button(`${origin}/account/orders/${order.id}`, "Отслеживать заказ")}`);
+    await sendEmail(order.email, `Заказ №${order.number} оформлен`, `Спасибо за заказ №${order.number}!`, `<p>Мы получили ваш заказ на сумму <b>${formatPrice(order.total)}</b>.</p><p>${order.items.map((i) => `${h(i.title)} × ${i.qty}`).join("<br/>")}</p>${button(`${origin}/account/orders/${order.id}`, "Отслеживать заказ")}`);
   }
   // low stock alerts
   const low = await prisma.product.findMany({ where: { id: { in: order.items.map((i) => i.productId).filter((x): x is string => Boolean(x)) }, stock: { lte: n.lowStockThreshold } }, select: { title: true, stock: true, sku: true } });
   for (const p of low) notify("lowStock", `📉 <b>Мало товара</b>\n${esc(p.title)} (${esc(p.sku)}) — осталось ${p.stock} шт.`);
   // outgoing webhook
   const integ = await getGroup<{ webhookEnabled: boolean; webhookUrl: string }>("integrations");
-  if (integ.webhookEnabled && /^https:\/\//.test(integ.webhookUrl)) {
+  let webhookOk = false;
+  try {
+    if (integ.webhookEnabled) webhookOk = Boolean(assertPublicHttpsUrl(integ.webhookUrl));
+  } catch {
+    webhookOk = false;
+  }
+  if (webhookOk) {
     const payload = JSON.stringify({ event: "order.created", order: { id: order.id, number: order.number, total: order.total, status: order.status, items: order.items.map((i) => ({ sku: i.sku, title: i.title, qty: i.qty, price: i.price })) } });
     const secret = await getSecret("integrations", "webhookSecret");
     const sig = secret ? createHmac("sha256", secret).update(payload).digest("hex") : "";
-    fetch(integ.webhookUrl, { method: "POST", headers: { "Content-Type": "application/json", "X-Signature": sig }, body: payload, signal: AbortSignal.timeout(5000) }).catch(() => undefined);
+    fetch(integ.webhookUrl, { method: "POST", headers: { "Content-Type": "application/json", "X-Signature": sig }, body: payload, redirect: "manual", signal: AbortSignal.timeout(5000) }).catch(() => undefined);
   }
 }
 
@@ -138,6 +145,21 @@ export async function changeOrderStatus(orderId: string, status: string, actor: 
     await tx.orderEvent.create({ data: { orderId, status: status as never, note: note || null, actorId: actor?.id, actorName: actor?.name } });
     return u;
   });
+  // Payment side effects
+  try {
+    const { refundOrder, markPaymentSucceeded } = await import("./payments");
+    if ((status === "CANCELLED" || status === "RETURNED") && order.paymentStatus === "paid") {
+      const r = await refundOrder(order.id);
+      if (r.refunded) await prisma.orderEvent.create({ data: { orderId: order.id, status: status as never, note: `Возврат средств ${formatPrice(r.refunded)}: ${r.note}` } });
+    }
+    if (status === "DELIVERED" || status === "PAID") {
+      // cash / card on delivery / invoice: money is received when the order is delivered or marked as paid
+      const pending = await prisma.payment.findFirst({ where: { orderId: order.id, status: "PENDING", provider: { in: ["offline", "invoice"] } } });
+      if (pending) await markPaymentSucceeded(pending.id);
+    }
+  } catch (e) {
+    await prisma.orderEvent.create({ data: { orderId: order.id, status: status as never, note: `Ошибка платёжной операции: ${(e as Error).message}`.slice(0, 500) } });
+  }
   notify("orderStatus", `📦 Заказ <b>№${order.number}</b>: ${ORDER_STATUS_LABELS[order.status]} → <b>${ORDER_STATUS_LABELS[status]}</b>${note ? "\n" + esc(note) : ""}`);
   const n = await getGroup<{ emailOnStatus: boolean }>("notifications");
   if (n.emailOnStatus) {

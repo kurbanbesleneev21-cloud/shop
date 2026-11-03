@@ -99,7 +99,7 @@ export function BuyBox({ p, seller, deliveryText, showSeller, showDelivery }: { 
       )}
 
       {showSeller && seller && (
-        <Link href={`/catalog?seller=${seller.slug}`} className="flex items-center gap-3 rounded-card border border-ink-100 p-4 transition hover:border-brand sm:p-5">
+        <Link href={`/shop/${seller.slug}`} className="flex items-center gap-3 rounded-card border border-ink-100 p-4 transition hover:border-brand sm:p-5">
           <span className="grid h-11 w-11 place-items-center rounded-xl bg-ink text-white"><Store size={20} /></span>
           <div className="flex-1">
             <div className="text-xs text-ink-500">Продавец</div>

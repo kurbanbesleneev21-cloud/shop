@@ -24,6 +24,7 @@ export function UsersView({ rows }: { rows: UserRow[] }) {
   const [open, setOpen] = useState<UserRow | null>(null);
   const [f, setF] = useState({ name: "", phone: "", role: "BUYER", blocked: false, blockReason: "" });
   const [busy, setBusy] = useState(false);
+  const [pw, setPw] = useState("");
   async function save(extra: Record<string, unknown> = {}) {
     if (!open) return;
     setBusy(true);
@@ -75,6 +76,10 @@ export function UsersView({ rows }: { rows: UserRow[] }) {
             </div>
             <div className="flex flex-wrap gap-2">
               <button className="btn-primary" disabled={busy} onClick={() => save()}>Сохранить</button>
+              <div className="flex w-full gap-2">
+                <input className="input" type="text" autoComplete="new-password" placeholder="Новый пароль (буквы и цифры, от 8 символов)" value={pw} onChange={(e) => setPw(e.target.value)} />
+                <button className="btn-dark shrink-0" disabled={busy || pw.length < 8} onClick={() => { save({ newPassword: pw }); setPw(""); }}>Задать пароль</button>
+              </div>
               {!open.emailVerified && <button className="btn-outline" disabled={busy} onClick={() => save({ verifyEmail: true })}>Подтвердить email вручную</button>}
               <button className="btn-outline" disabled={busy} onClick={() => save({ logoutEverywhere: true })}>Завершить все сессии</button>
             </div>

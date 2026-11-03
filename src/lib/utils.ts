@@ -75,11 +75,8 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
   RETURNED: "Возвращён",
 };
 
-export const PAYMENT_LABELS: Record<string, string> = {
-  card: "Банковской картой онлайн",
-  sbp: "СБП",
-  cash: "При получении",
-};
+import { PAYMENT_METHODS } from "./payment-methods";
+export const PAYMENT_LABELS: Record<string, string> = Object.fromEntries(PAYMENT_METHODS.map((m) => [m.key, m.label]));
 
 export const DELIVERY_LABELS: Record<string, string> = {
   courier: "Курьером",

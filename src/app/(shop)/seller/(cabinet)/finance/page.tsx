@@ -18,6 +18,7 @@ export default async function SellerFinance() {
       </div>
       <p className="text-sm text-ink-500">Ставка комиссии: {user.seller!.commissionRate ?? "по умолчанию"}%. К выводу доступны средства по доставленным заказам за вычетом комиссии.</p>
       <SellerPayoutForm balance={Math.max(0, f?.balance ?? 0)} />
+      <div className="flex flex-wrap gap-2"><a href="/api/seller/export?type=orders&format=csv" className="btn-outline btn-sm">Отчёт по продажам CSV</a><a href="/api/seller/export?type=orders&format=xlsx" className="btn-outline btn-sm">Отчёт по продажам Excel</a></div>
       <div className="rounded-card border border-ink-100">
         <h2 className="p-4 font-bold">Выплаты</h2>
         {payouts.length ? <ul className="divide-y divide-ink-100">{payouts.map((p) => <li key={p.id} className="flex justify-between px-4 py-2.5 text-sm"><span>{formatDate(p.createdAt)} · {p.status === "PAID" ? "выплачено" : p.status === "PENDING" ? "в обработке" : "отменено"}</span><b>{formatPrice(p.amount)}</b></li>)}</ul> : <p className="px-4 pb-4 text-sm text-ink-500">Выплат пока не было</p>}

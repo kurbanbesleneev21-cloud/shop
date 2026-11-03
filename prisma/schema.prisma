@@ -131,6 +131,11 @@ model Seller {
   status         SellerStatus @default(PENDING)
   commissionRate Float?
   rating         Float        @default(5)
+  address        String?
+  bankName       String?
+  bik            String?
+  bankAccount    String?
+  returnPolicy   String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -287,11 +292,16 @@ model Order {
   address         String?
   comment         String?
   cancelReason    String?
+  companyName     String?
+  companyInn      String?
+  trackingNumber  String?
+  paidAt          DateTime?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
-  items  OrderItem[]
-  events OrderEvent[]
+  items    OrderItem[]
+  events   OrderEvent[]
+  payments Payment[]
 
   @@index([status])
   @@index([createdAt])
@@ -333,23 +343,23 @@ model OrderEvent {
 }
 
 model Review {
-  id         String       @id @default(cuid())
-  productId  String
-  product    Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
-  userId     String
-  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orderId    String?
-  rating     Int
-  text       String
-  pros       String?
-  cons       String?
-  photos     Json         @default("[]")
-  status     ReviewStatus @default(PENDING)
-  reply      String?
-  replyAt    DateTime?
-  complaints Int          @default(0)
-  complaintReasons Json   @default("[]")
-  createdAt  DateTime     @default(now())
+  id               String       @id @default(cuid())
+  productId        String
+  product          Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId          String?
+  rating           Int
+  text             String
+  pros             String?
+  cons             String?
+  photos           Json         @default("[]")
+  status           ReviewStatus @default(PENDING)
+  reply            String?
+  replyAt          DateTime?
+  complaints       Int          @default(0)
+  complaintReasons Json         @default("[]")
+  createdAt        DateTime     @default(now())
 
   @@unique([productId, userId])
   @@index([status])
@@ -463,4 +473,27 @@ model RateLimit {
   key     String   @id
   count   Int
   resetAt DateTime
+}
+
+model Payment {
+  id              String    @id @default(cuid())
+  orderId         String
+  order           Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method          String
+  provider        String
+  amount          Int
+  refundedAmount  Int       @default(0)
+  status          String    @default("PENDING")
+  externalId      String?
+  confirmationUrl String?
+  idempotenceKey  String    @unique
+  error           String?
+  meta            Json      @default("{}")
+  paidAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([orderId])
+  @@index([externalId])
+  @@index([status, createdAt])
 }

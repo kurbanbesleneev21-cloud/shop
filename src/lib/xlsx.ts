@@ -6,7 +6,7 @@ const col = (n: number) => { let s = ""; n++; while (n) { const m = (n - 1) % 26
 
 /** Minimal dependency-free XLSX writer (one sheet, numbers and strings). */
 export function toXlsx(rows: (string | number)[][], sheetName = "Отчёт") {
-  const sheetRows = rows.map((r, i) => `<row r="${i + 1}">${r.map((v, j) => typeof v === "number" && Number.isFinite(v) ? `<c r="${col(j)}${i + 1}"${i === 0 ? ' s="1"' : ""}><v>${v}</v></c>` : `<c r="${col(j)}${i + 1}" t="inlineStr"${i === 0 ? ' s="1"' : ""}><is><t xml:space="preserve">${esc(String(v ?? ""))}</t></is></c>`).join("")}</row>`).join("");
+  const sheetRows = rows.map((r, i) => `<row r="${i + 1}">${r.map((v, j) => typeof v === "number" && Number.isFinite(v) ? `<c r="${col(j)}${i + 1}"${i === 0 ? ' s="1"' : ""}><v>${v}</v></c>` : `<c r="${col(j)}${i + 1}" t="inlineStr"${i === 0 ? ' s="1"' : ""}><is><t xml:space="preserve">${esc(String(safeCell(v ?? "")))}</t></is></c>`).join("")}</row>`).join("");
   const files: Record<string, Uint8Array> = {
     "[Content_Types].xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`),
     "_rels/.rels": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`),
@@ -18,6 +18,13 @@ export function toXlsx(rows: (string | number)[][], sheetName = "Отчёт") {
   return zipSync(files);
 }
 
+/** Neutralises spreadsheet formula injection (=, +, -, @, tab, CR at the start of a text cell). */
+export function safeCell(v: string | number) {
+  if (typeof v === "number") return v;
+  const s = String(v ?? "");
+  return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+}
+
 export function toCsv(rows: (string | number)[][]) {
-  return "﻿" + rows.map((r) => r.map((v) => { const s = String(v ?? ""); return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }).join(";")).join("\n");
+  return "﻿" + rows.map((r) => r.map((v) => { const s = String(safeCell(v ?? "")); return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }).join(";")).join("\n");
 }

@@ -14,6 +14,9 @@ export function ProfileForms({ user, smsAvailable }: { user: { name: string; ema
   const [busy, setBusy] = useState("");
   const [pw, setPw] = useState({ current: "", next: "" });
   const [devLink, setDevLink] = useState<string>();
+  const [emailCode, setEmailCode] = useState("");
+  const [emailCodeSent, setEmailCodeSent] = useState(false);
+  const [devCode, setDevCode] = useState<string>();
   const [code, setCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
 
@@ -38,14 +41,23 @@ export function ProfileForms({ user, smsAvailable }: { user: { name: string; ema
             className="btn-primary btn-sm"
             disabled={busy === "verify"}
             onClick={() => run("verify", async () => {
-              const r = await api<{ verification?: { sent: boolean; devLink?: string } }>("/api/auth/resend", { method: "POST" });
+              const r = await api<{ verification?: { sent: boolean; devLink?: string; devCode?: string } }>("/api/auth/resend", { method: "POST" });
               setDevLink(r.verification?.devLink);
+              setDevCode(r.verification?.devCode);
+              setEmailCodeSent(true);
               toast(r.verification?.sent ? "Письмо отправлено" : "Ссылка подтверждения сформирована", "info");
             })}
           >
             Отправить письмо
           </button>
-          {devLink && <a href={devLink} className="link w-full text-sm">Демо-режим (почта не настроена): подтвердить email →</a>}
+          {emailCodeSent && (
+            <div className="flex w-full flex-wrap items-center gap-2">
+              <input className="input h-10 w-40 text-center font-mono tracking-widest" inputMode="numeric" maxLength={6} value={emailCode} onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Код" aria-label="Код из письма" />
+              <button className="btn-primary btn-sm" disabled={emailCode.length !== 6 || busy === "code"} onClick={() => run("code", async () => { await api("/api/auth/verify-code", { body: { code: emailCode } }); await refreshUser(); toast("Email подтверждён"); router.refresh(); })}>Подтвердить</button>
+              {devCode && <span className="text-sm text-ink-600">Демо-режим (почта не настроена): код <b className="font-mono">{devCode}</b></span>}
+            </div>
+          )}
+          {devLink && <a href={devLink} className="link w-full text-sm">или подтвердите по ссылке →</a>}
         </div>
       )}
       <section className="rounded-card border border-ink-100 p-4 sm:p-5">

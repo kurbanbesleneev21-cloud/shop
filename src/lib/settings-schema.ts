@@ -1,3 +1,5 @@
+import { PAYMENT_METHODS } from "./payment-methods";
+
 // Shared (client + server) description of all global settings.
 // Every field here gets a real control in /admin/settings and is persisted in the Setting table.
 
@@ -159,13 +161,30 @@ export const SETTINGS_GROUPS: SettingGroup[] = [
   {
     key: "payments",
     title: "Платежи",
+    description: "Способы оплаты и платёжный провайдер. Ключи провайдеров хранятся зашифрованными на сервере.",
     fields: [
-      bool("card", "Оплата картой онлайн", true),
-      bool("sbp", "Оплата через СБП", true),
-      bool("cash", "Оплата при получении", true),
-      select("provider", "Платёжный провайдер", "test", [["test", "Тестовый режим (оплата подтверждается сразу)"], ["manual", "Ручное подтверждение администратором"]]),
-      text("shopId", "ID магазина у провайдера", ""),
-      secret("providerSecret", "Секретный ключ провайдера"),
+      select("provider", "Провайдер онлайн-оплаты", "test", [
+        ["test", "Тестовый режим (деньги не списываются)"],
+        ["yookassa", "ЮKassa"],
+        ["tbank", "Т-Банк (Т-Касса)"],
+      ], "Для боевого режима укажите данные магазина ниже"),
+      ...PAYMENT_METHODS.map((m) => bool(m.key, `${m.label} — ${m.description}`, m.defaultEnabled)),
+      text("yookassaShopId", "ЮKassa: shopId", ""),
+      secret("yookassaSecret", "ЮKassa: секретный ключ"),
+      text("tbankTerminalKey", "Т-Банк: TerminalKey", ""),
+      secret("tbankPassword", "Т-Банк: пароль терминала"),
+      num("paymentTimeoutMinutes", "Неоплаченный онлайн-заказ отменяется через, минут", 60, 10, 10080),
+      num("installmentParts", "Оплата частями: количество платежей", 4, 2, 12),
+      num("creditMonths", "Кредит: срок по умолчанию, месяцев", 12, 3, 60),
+      num("creditRate", "Кредит: ставка для расчёта, % годовых", 19, 0, 100),
+      num("creditMinAmount", "Кредит/частями: минимальная сумма заказа, ₽", 3000, 0),
+      num("cashMaxAmount", "Оплата при получении: максимальная сумма, ₽ (0 — без ограничений)", 300000, 0),
+      text("companyName", "Реквизиты для счетов: получатель", "ООО «ТЕХМАРКЕТ»"),
+      text("companyInn", "ИНН / КПП", "7700000000 / 770001001"),
+      text("companyBank", "Банк", "ПАО Сбербанк"),
+      text("companyBik", "БИК", "044525225"),
+      text("companyAccount", "Расчётный счёт", "40702810000000000000"),
+      text("companyCorrAccount", "Корр. счёт", "30101810400000000225"),
     ],
   },
   {

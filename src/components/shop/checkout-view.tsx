@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Banknote, CreditCard, Loader2, MapPin, Package, QrCode, Store, Truck, Lock } from "lucide-react";
+import { Loader2, MapPin, Package, Store, Truck, Lock, ShieldCheck } from "lucide-react";
+import { PaymentPicker } from "./payment-picker";
+import { methodDef } from "@/lib/payment-methods";
 import { useApp, useHydrated } from "../providers";
 import { ProductImage } from "./product-image";
 import { api } from "@/lib/client-api";
@@ -12,14 +14,13 @@ import { cn, formatPrice } from "@/lib/utils";
 type Priced = { subtotal: number; discount: number; deliveryPrice: number; total: number; promoError?: string; deliveryOptions: { method: string; price: number }[]; lines: { productId: string; available: boolean }[] };
 
 const DELIVERY = { courier: { label: "Курьером", icon: Truck, hint: "Доставка до двери" }, pickup: { label: "Пункт выдачи", icon: Store, hint: "Бесплатное хранение 7 дней" }, post: { label: "Почта России", icon: Package, hint: "В любой населённый пункт" } } as const;
-const PAY = { card: { label: "Картой онлайн", icon: CreditCard }, sbp: { label: "СБП", icon: QrCode }, cash: { label: "При получении", icon: Banknote } } as const;
 
 export function CheckoutView() {
   const { cart: rawCart, user, config, clearCart, openAuth, toast } = useApp();
   const hydrated = useHydrated();
   const cart = hydrated ? rawCart : [];
   const router = useRouter();
-  const [form, setForm] = useState({ recipientName: "", phone: "", email: "", city: "", address: "", comment: "" });
+  const [form, setForm] = useState({ recipientName: "", phone: "", email: "", city: "", address: "", comment: "", companyName: "", companyInn: "" });
   const [delivery, setDelivery] = useState<string>("courier");
   const [payment, setPayment] = useState<string>("card");
   const [promo, setPromo] = useState<string>("");
@@ -43,8 +44,7 @@ export function CheckoutView() {
   useEffect(() => {
     const firstD = (Object.keys(DELIVERY) as (keyof typeof DELIVERY)[]).find((k) => config.delivery[k]);
     if (firstD && !config.delivery[delivery as keyof typeof DELIVERY]) setDelivery(firstD);
-    const firstP = (Object.keys(PAY) as (keyof typeof PAY)[]).find((k) => config.payments[k]);
-    if (firstP && !config.payments[payment as keyof typeof PAY]) setPayment(firstP);
+    if (!config.payments.enabled.includes(payment) && config.payments.enabled[0]) setPayment(config.payments.enabled[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
   useEffect(() => {
@@ -59,16 +59,22 @@ export function CheckoutView() {
     setErr("");
     if (!user && !config.cart.allowGuestCheckout) return openAuth("login", "/checkout");
     if (delivery !== "pickup" && (!form.city.trim() || !form.address.trim())) return setErr("Укажите город и адрес доставки");
+    if (payment === "invoice" && (!form.companyName.trim() || !/^(\d{10}|\d{12})$/.test(form.companyInn))) return setErr("Для оплаты по счёту укажите организацию и ИНН (10 или 12 цифр)");
     setBusy(true);
     try {
-      const r = await api<{ id: string; number: number; paid: boolean }>("/api/orders", {
+      const r = await api<{ id: string; number: number; redirectUrl: string | null; online: boolean; paymentError?: string }>("/api/orders", {
         body: { ...form, phone: form.phone.replace(/[^\d+]/g, ""), deliveryMethod: delivery, paymentMethod: payment, promoCode: priced?.promoError ? "" : promo, items: cart.map((c) => ({ productId: c.id, qty: c.qty })) },
       });
       localStorage.setItem("tm_addr", JSON.stringify({ city: form.city, address: form.address }));
       sessionStorage.removeItem("tm_promo");
       clearCart();
       toast(`Заказ №${r.number} оформлен!`);
-      router.push(`/checkout/success?n=${r.number}&id=${user ? r.id : ""}&paid=${r.paid ? 1 : 0}`);
+      if (r.redirectUrl && /^https:\/\//.test(r.redirectUrl)) {
+        window.location.assign(r.redirectUrl); // provider payment page (ЮKassa / Т-Банк)
+        return;
+      }
+      if (r.redirectUrl) router.push(r.redirectUrl); // test acquiring or invoice page
+      else router.push(`/checkout/success?n=${r.number}&id=${user ? r.id : ""}${r.paymentError ? "&perr=1" : ""}`);
       router.refresh();
     } catch (e) {
       setErr((e as Error).message);
@@ -132,17 +138,17 @@ export function CheckoutView() {
             )}
           </Block>
           <Block n={3} title="Способ оплаты">
-            <div className="grid grid-cols-3 gap-2">
-              {(Object.keys(PAY) as (keyof typeof PAY)[]).filter((k) => config.payments[k]).map((k) => {
-                const P = PAY[k];
-                return (
-                  <button type="button" key={k} onClick={() => setPayment(k)} className={cn("flex flex-col items-center gap-1.5 rounded-card border-2 p-3 text-center text-sm font-semibold transition", payment === k ? "border-brand bg-brand-50 text-brand" : "border-ink-100 hover:border-ink-300")}>
-                    <P.icon size={22} />
-                    {P.label}
-                  </button>
-                );
-              })}
-            </div>
+            <PaymentPicker value={payment} onChange={setPayment} total={priced?.total ?? 0} cfg={config.payments} currency={config.currency} />
+            {payment === "invoice" && (
+              <div className="mt-3 grid gap-3 rounded-xl bg-ink-50 p-3 sm:grid-cols-2">
+                <div><label className="label">Организация / ИП</label><input className="input" value={form.companyName} onChange={set("companyName")} placeholder="ООО «Ромашка»" /></div>
+                <div><label className="label">ИНН</label><input className="input" inputMode="numeric" value={form.companyInn} onChange={(e) => setForm((f) => ({ ...f, companyInn: e.target.value.replace(/\D/g, "").slice(0, 12) }))} /></div>
+                <p className="text-xs text-ink-500 sm:col-span-2">После оформления откроется счёт на оплату. Заказ будет передан в доставку после поступления денег.</p>
+              </div>
+            )}
+            {config.payments.testMode && methodDef(payment)?.online && (
+              <p className="mt-3 flex items-center gap-2 rounded-xl bg-brand-50 p-3 text-xs text-brand"><ShieldCheck size={16} />Платёжная система работает в тестовом режиме: деньги не списываются.</p>
+            )}
             <div className="mt-3"><label className="label">Комментарий к заказу</label><textarea className="textarea min-h-[70px]" value={form.comment} onChange={set("comment")} maxLength={1000} placeholder="Например, позвонить за час до доставки" /></div>
           </Block>
         </div>
@@ -166,7 +172,7 @@ export function CheckoutView() {
             {err && <div className="mt-3 rounded-xl border border-ink-200 bg-ink-50 p-3 text-sm font-medium">{err}</div>}
             <button className="btn-primary btn-lg mt-4 w-full" disabled={busy || !priced}>
               {busy ? <Loader2 size={18} className="animate-spin" /> : <Lock size={16} />}
-              {payment === "cash" ? "Оформить заказ" : "Оплатить заказ"}
+              {methodDef(payment)?.online ? "Перейти к оплате" : "Оформить заказ"}
             </button>
             <p className="mt-3 text-center text-xs text-ink-500">Нажимая кнопку, вы соглашаетесь с условиями <Link href="/info/privacy" className="link">обработки данных</Link></p>
           </div>

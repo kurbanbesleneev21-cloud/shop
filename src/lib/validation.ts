@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PAYMENT_KEYS } from "./payment-methods";
 
 export const emailSchema = z.string().trim().toLowerCase().email("Введите корректный email").max(160);
 export const phoneSchema = z
@@ -13,13 +14,19 @@ export const passwordSchema = z
   .max(128)
   .refine((v) => /[A-Za-zА-Яа-я]/.test(v) && /\d/.test(v), "Пароль должен содержать буквы и цифры");
 
-export const registerSchema = z.object({
-  name: nameSchema,
-  email: emailSchema,
-  phone: z.string().optional().default(""),
-  password: passwordSchema,
-  agree: z.boolean().optional(),
-});
+export const registerSchema = z
+  .object({
+    name: nameSchema.refine((v) => /^[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё\s'.-]{1,79}$/.test(v), "Имя может содержать только буквы, пробел и дефис"),
+    email: emailSchema,
+    phone: z.string().optional().default(""),
+    password: passwordSchema,
+    passwordConfirm: z.string().max(128),
+    agree: z.literal(true, "Необходимо согласие на обработку персональных данных"),
+    marketing: z.boolean().optional().default(false),
+    accountType: z.enum(["buyer", "seller"]).optional().default("buyer"),
+    website: z.string().max(200).optional().default(""), // honeypot: humans never fill it
+  })
+  .refine((d) => d.password === d.passwordConfirm, { message: "Пароли не совпадают", path: ["passwordConfirm"] });
 
 export const loginSchema = z.object({ email: emailSchema, password: z.string().min(1, "Введите пароль").max(128) });
 
@@ -71,7 +78,9 @@ export const checkoutSchema = z.object({
   deliveryMethod: z.enum(["courier", "pickup", "post"]),
   city: z.string().trim().max(120).optional().default(""),
   address: z.string().trim().max(400).optional().default(""),
-  paymentMethod: z.enum(["card", "sbp", "cash"]),
+  paymentMethod: z.enum(PAYMENT_KEYS as [string, ...string[]], "Выберите способ оплаты"),
+  companyName: z.string().trim().max(200).optional().default(""),
+  companyInn: z.string().trim().regex(/^(\d{10}|\d{12})?$/, "ИНН — 10 или 12 цифр").optional().default(""),
   comment: z.string().trim().max(1000).optional().default(""),
   promoCode: z.string().trim().max(40).optional().default(""),
 });

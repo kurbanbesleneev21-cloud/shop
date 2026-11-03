@@ -1,5 +1,6 @@
 import "server-only";
 import { getGroup, getSecret } from "./settings";
+import { assertPublicHttpsUrl } from "./url-safety";
 
 export type AiInput = { title: string; brand?: string; model?: string; specs?: string; wishes?: string; image?: string | null };
 export type AiCategory = { slug: string; name: string; template: { key: string; label: string }[] };
@@ -72,7 +73,7 @@ export async function generateCard(input: AiInput, cats: AiCategory[]): Promise<
     if (!res.ok) throw new Error(j.error?.message || `Gemini HTTP ${res.status}`);
     raw = j.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
   } else {
-    const url = cfg.provider === "openai" ? `${(cfg.baseUrl || "https://api.openai.com/v1").replace(/\/$/, "")}/chat/completions` : ENDPOINTS[cfg.provider];
+    const url = cfg.provider === "openai" ? `${assertPublicHttpsUrl(cfg.baseUrl || "https://api.openai.com/v1").toString().replace(/\/$/, "")}/chat/completions` : ENDPOINTS[cfg.provider];
     if (!url) throw new Error("Неизвестный AI-провайдер");
     const content: unknown = input.image && cfg.provider !== "groq" ? [{ type: "text", text }, { type: "image_url", image_url: { url: input.image } }] : text;
     const res = await fetch(url, {

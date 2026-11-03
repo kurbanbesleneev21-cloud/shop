@@ -15,7 +15,7 @@ const homeBlock = z.object({
 });
 
 export const PUT = route({ auth: "admin" }, async (req, { user, ip }) => {
-  const data = await body(req, z.object({ group: z.string().max(40), values: z.record(z.unknown()).default({}), secrets: z.record(z.union([z.string(), z.null()])).optional(), draft: z.boolean().optional() }));
+  const data = await body(req, z.object({ group: z.string().max(40), values: z.record(z.string(), z.unknown()).default({}), secrets: z.record(z.string(), z.union([z.string(), z.null()])).optional(), draft: z.boolean().optional() }));
   const known = SETTINGS_GROUPS.some((g) => g.key === data.group) || data.group === "home";
   if (!known) throw new ApiError(400, "Неизвестная группа настроек");
   const draft = Boolean(data.draft && DRAFTABLE.includes(data.group));
