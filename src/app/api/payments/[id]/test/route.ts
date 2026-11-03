@@ -16,7 +16,7 @@ export const POST = route<{ id: string }>({}, async (req, { params, ip }) => {
     await markPaymentCanceled(p.id, "Отменён покупателем");
     return ok({ status: "CANCELED" });
   }
-  if (p.method === "card" || p.method === "mirpay" || p.method === "wallet") {
+  if (p.method === "platega_card" || p.method === "platega_intl") {
     const num = (data.card ?? "").replace(/\D/g, "");
     if (!luhnValid(num)) throw new ApiError(400, "Неверный номер карты");
     if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(data.exp ?? "")) throw new ApiError(400, "Срок действия в формате ММ/ГГ");

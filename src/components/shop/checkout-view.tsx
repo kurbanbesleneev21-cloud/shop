@@ -22,7 +22,7 @@ export function CheckoutView() {
   const router = useRouter();
   const [form, setForm] = useState({ recipientName: "", phone: "", email: "", city: "", address: "", comment: "", companyName: "", companyInn: "" });
   const [delivery, setDelivery] = useState<string>("courier");
-  const [payment, setPayment] = useState<string>("card");
+  const [payment, setPayment] = useState<string>("platega_sbp");
   const [promo, setPromo] = useState<string>("");
   const [priced, setPriced] = useState<Priced | null>(null);
   const [busy, setBusy] = useState(false);
@@ -59,7 +59,6 @@ export function CheckoutView() {
     setErr("");
     if (!user && !config.cart.allowGuestCheckout) return openAuth("login", "/checkout");
     if (delivery !== "pickup" && (!form.city.trim() || !form.address.trim())) return setErr("Укажите город и адрес доставки");
-    if (payment === "invoice" && (!form.companyName.trim() || !/^(\d{10}|\d{12})$/.test(form.companyInn))) return setErr("Для оплаты по счёту укажите организацию и ИНН (10 или 12 цифр)");
     setBusy(true);
     try {
       const r = await api<{ id: string; number: number; redirectUrl: string | null; online: boolean; paymentError?: string }>("/api/orders", {
@@ -73,7 +72,7 @@ export function CheckoutView() {
         window.location.assign(r.redirectUrl); // provider payment page (ЮKassa / Т-Банк)
         return;
       }
-      if (r.redirectUrl) router.push(r.redirectUrl); // test acquiring or invoice page
+      if (r.redirectUrl) router.push(r.redirectUrl); // Kaspi page or test acquiring
       else router.push(`/checkout/success?n=${r.number}&id=${user ? r.id : ""}${r.paymentError ? "&perr=1" : ""}`);
       router.refresh();
     } catch (e) {
@@ -139,13 +138,6 @@ export function CheckoutView() {
           </Block>
           <Block n={3} title="Способ оплаты">
             <PaymentPicker value={payment} onChange={setPayment} total={priced?.total ?? 0} cfg={config.payments} currency={config.currency} />
-            {payment === "invoice" && (
-              <div className="mt-3 grid gap-3 rounded-xl bg-ink-50 p-3 sm:grid-cols-2">
-                <div><label className="label">Организация / ИП</label><input className="input" value={form.companyName} onChange={set("companyName")} placeholder="ООО «Ромашка»" /></div>
-                <div><label className="label">ИНН</label><input className="input" inputMode="numeric" value={form.companyInn} onChange={(e) => setForm((f) => ({ ...f, companyInn: e.target.value.replace(/\D/g, "").slice(0, 12) }))} /></div>
-                <p className="text-xs text-ink-500 sm:col-span-2">После оформления откроется счёт на оплату. Заказ будет передан в доставку после поступления денег.</p>
-              </div>
-            )}
             {config.payments.testMode && methodDef(payment)?.online && (
               <p className="mt-3 flex items-center gap-2 rounded-xl bg-brand-50 p-3 text-xs text-brand"><ShieldCheck size={16} />Платёжная система работает в тестовом режиме: деньги не списываются.</p>
             )}
@@ -172,7 +164,7 @@ export function CheckoutView() {
             {err && <div className="mt-3 rounded-xl border border-ink-200 bg-ink-50 p-3 text-sm font-medium">{err}</div>}
             <button className="btn-primary btn-lg mt-4 w-full" disabled={busy || !priced}>
               {busy ? <Loader2 size={18} className="animate-spin" /> : <Lock size={16} />}
-              {methodDef(payment)?.online ? "Перейти к оплате" : "Оформить заказ"}
+              Перейти к оплате
             </button>
             <p className="mt-3 text-center text-xs text-ink-500">Нажимая кнопку, вы соглашаетесь с условиями <Link href="/info/privacy" className="link">обработки данных</Link></p>
           </div>

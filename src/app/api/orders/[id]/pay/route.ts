@@ -16,7 +16,6 @@ export const POST = route<{ id: string }>({ auth: "user" }, async (req, { user, 
     const cfg = await paymentsCfg();
     const def = methodDef(method)!;
     if (cfg[method] === false || (cfg[method] === undefined && !def.defaultEnabled)) throw new ApiError(400, "Способ оплаты недоступен");
-    if (method === "invoice") throw new ApiError(400, "Оплату по счёту выбирают при оформлении заказа");
     await prisma.order.update({ where: { id: o.id }, data: { paymentMethod: method } });
   }
   await prisma.payment.updateMany({ where: { orderId: o.id, status: "PENDING" }, data: { status: "CANCELED", error: "Создана новая попытка оплаты" } });

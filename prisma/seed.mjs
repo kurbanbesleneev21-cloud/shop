@@ -298,7 +298,7 @@ async function seedCatalog() {
     const order = await prisma.order.create({
       data: {
         userId: buyer.id, status, subtotal, deliveryPrice: delivery, total: subtotal + delivery, commissionTotal: status === "CANCELLED" ? 0 : commission,
-        paymentMethod: ["card", "sbp", "cash"][i % 3], paymentStatus: ["DELIVERED", "SHIPPED", "PAID"].includes(status) ? "paid" : "pending",
+        paymentMethod: ["platega_card", "platega_sbp", "kaspi"][i % 3], paymentStatus: ["DELIVERED", "SHIPPED", "PAID"].includes(status) ? "paid" : "pending",
         deliveryMethod: ["courier", "pickup", "post"][i % 3], recipientName: buyer.name, phone: buyer.phone || "+79160000000", email: buyer.email,
         city: "Москва", address: "ул. Тверская, д. " + (i + 1), createdAt: created, items: { create: items },
         events: { create: [{ status: "NEW", note: "Заказ создан", createdAt: created }, ...(status !== "NEW" ? [{ status, note: "Статус обновлён", createdAt: new Date(created.getTime() + 86400000) }] : [])] },

@@ -1,6 +1,7 @@
 // Client-safe registry of payment methods. Server logic lives in lib/payments.ts.
+// Payment systems: Platega (СБП, cards, international cards, crypto) and Kaspi (payment link / QR).
 
-export type PaymentGroup = "online" | "delivery" | "business";
+export type PaymentGroup = "platega" | "kaspi";
 
 export type PaymentMethodDef = {
   key: string;
@@ -8,51 +9,36 @@ export type PaymentMethodDef = {
   short: string;
   description: string;
   group: PaymentGroup;
-  /** Paid online through the acquiring provider (ЮKassa / Т-Банк / test) */
+  /** Paid online with automatic confirmation (Platega). Kaspi is confirmed by the administrator. */
   online: boolean;
-  /** payment_method_data.type for ЮKassa (undefined → user chooses on the ЮKassa page) */
-  yookassaType?: string;
-  icon: "card" | "sbp" | "sber" | "tpay" | "yoomoney" | "mir" | "wallet" | "parts" | "credit" | "cash" | "pos" | "invoice";
+  /** paymentMethod code for Platega */
+  plategaCode?: number;
+  icon: "sbp" | "card" | "globe" | "crypto" | "kaspi";
   defaultEnabled: boolean;
 };
 
 export const PAYMENT_METHODS: PaymentMethodDef[] = [
-  { key: "card", label: "Банковская карта", short: "Картой онлайн", description: "МИР, Visa, Mastercard, UnionPay", group: "online", online: true, yookassaType: "bank_card", icon: "card", defaultEnabled: true },
-  { key: "sbp", label: "СБП", short: "СБП", description: "Система быстрых платежей — оплата по QR-коду из приложения банка", group: "online", online: true, yookassaType: "sbp", icon: "sbp", defaultEnabled: true },
-  { key: "sberpay", label: "SberPay", short: "SberPay", description: "Оплата в приложении СберБанк Онлайн", group: "online", online: true, yookassaType: "sberbank", icon: "sber", defaultEnabled: true },
-  { key: "tpay", label: "T-Pay", short: "T-Pay", description: "Оплата в приложении Т-Банка", group: "online", online: true, yookassaType: "tinkoff_bank", icon: "tpay", defaultEnabled: true },
-  { key: "yoomoney", label: "ЮMoney", short: "ЮMoney", description: "Кошелёк ЮMoney", group: "online", online: true, yookassaType: "yoo_money", icon: "yoomoney", defaultEnabled: true },
-  { key: "mirpay", label: "Mir Pay", short: "Mir Pay", description: "Бесконтактная оплата картой МИР со смартфона", group: "online", online: true, yookassaType: "bank_card", icon: "mir", defaultEnabled: true },
-  { key: "wallet", label: "Apple Pay / Google Pay", short: "Apple / Google Pay", description: "Оплата картой, сохранённой в телефоне", group: "online", online: true, yookassaType: "bank_card", icon: "wallet", defaultEnabled: false },
-  { key: "installments", label: "Оплата частями", short: "Частями", description: "Без переплаты: 4 платежа раз в две недели", group: "online", online: true, yookassaType: "installments", icon: "parts", defaultEnabled: true },
-  { key: "credit", label: "Кредит или рассрочка", short: "В кредит", description: "Онлайн-заявка в банк, решение за 2 минуты", group: "online", online: true, yookassaType: "sber_loan", icon: "credit", defaultEnabled: true },
-  { key: "cash", label: "Наличными при получении", short: "Наличными", description: "Курьеру или в пункте выдачи", group: "delivery", online: false, icon: "cash", defaultEnabled: true },
-  { key: "card_on_delivery", label: "Картой при получении", short: "Картой курьеру", description: "Терминал у курьера и в пунктах выдачи", group: "delivery", online: false, icon: "pos", defaultEnabled: true },
-  { key: "invoice", label: "Счёт для юрлиц и ИП", short: "По счёту", description: "Безналичная оплата по счёту, закрывающие документы", group: "business", online: false, icon: "invoice", defaultEnabled: true },
+  { key: "platega_sbp", label: "СБП", short: "СБП", description: "Оплата по QR-коду через приложение любого банка (Platega)", group: "platega", online: true, plategaCode: 2, icon: "sbp", defaultEnabled: true },
+  { key: "platega_card", label: "Банковская карта", short: "Картой", description: "МИР, Visa, Mastercard (Platega)", group: "platega", online: true, plategaCode: 11, icon: "card", defaultEnabled: true },
+  { key: "platega_intl", label: "Карта зарубежного банка", short: "Зарубежной картой", description: "Международные платежи (Platega)", group: "platega", online: true, plategaCode: 12, icon: "globe", defaultEnabled: false },
+  { key: "platega_crypto", label: "Криптовалюта", short: "Криптой", description: "USDT и другие (Platega)", group: "platega", online: true, plategaCode: 13, icon: "crypto", defaultEnabled: false },
+  { key: "kaspi", label: "Kaspi Pay", short: "Kaspi", description: "Оплата в приложении Kaspi.kz по ссылке или QR-коду", group: "kaspi", online: false, icon: "kaspi", defaultEnabled: true },
 ];
 
 export const PAYMENT_KEYS = PAYMENT_METHODS.map((m) => m.key);
 export const methodDef = (key: string) => PAYMENT_METHODS.find((m) => m.key === key);
-export const PAYMENT_GROUP_LABELS: Record<PaymentGroup, string> = { online: "Онлайн", delivery: "При получении", business: "Для бизнеса" };
+export const PAYMENT_GROUP_LABELS: Record<PaymentGroup, string> = { platega: "Онлайн-оплата · Platega", kaspi: "Kaspi" };
 
 export const PAYMENT_STATUS_LABELS: Record<string, string> = {
   PENDING: "Ожидает оплаты",
-  WAITING: "Ожидает подтверждения",
+  WAITING: "Покупатель сообщил об оплате",
   SUCCEEDED: "Оплачен",
   CANCELED: "Отменён",
   REFUNDED: "Возвращён",
   PARTIAL_REFUND: "Частичный возврат",
 };
 
-/** Monthly payment for a credit (annuity). rate — % per year. */
-export function creditMonthly(total: number, months: number, ratePercent: number) {
-  if (months <= 0) return total;
-  const r = ratePercent / 100 / 12;
-  if (r <= 0) return Math.ceil(total / months);
-  return Math.ceil((total * r) / (1 - Math.pow(1 + r, -months)));
-}
-
-/** Luhn check for test card form */
+/** Luhn check for the test card form */
 export function luhnValid(num: string) {
   const d = num.replace(/\D/g, "");
   if (d.length < 13 || d.length > 19) return false;

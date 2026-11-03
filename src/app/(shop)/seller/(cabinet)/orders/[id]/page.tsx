@@ -50,7 +50,7 @@ export default async function SellerOrder({ params }: { params: Promise<{ id: st
             <h3 className="mb-1 mt-3 font-bold">Оплата</h3>
             <div>{PAYMENT_LABELS[o.paymentMethod]} · {o.paymentStatus === "paid" ? "оплачен" : o.paymentStatus === "refunded" ? "возвращён" : "не оплачен"}</div>
           </div>
-          {onlyMine ? <SellerOrderActions id={o.id} status={o.status} needsTracking={o.deliveryMethod !== "pickup"} paid={o.paymentStatus === "paid" || ["cash", "card_on_delivery"].includes(o.paymentMethod)} /> : <p className="rounded-card bg-ink-50 p-4 text-sm text-ink-600">В заказе есть товары других продавцов — статусом управляет маркетплейс. Подготовьте свои товары к отгрузке.</p>}
+          {onlyMine ? <SellerOrderActions id={o.id} status={o.status} needsTracking={o.deliveryMethod !== "pickup"} paid={o.paymentStatus === "paid"} /> : <p className="rounded-card bg-ink-50 p-4 text-sm text-ink-600">В заказе есть товары других продавцов — статусом управляет маркетплейс. Подготовьте свои товары к отгрузке.</p>}
         </div>
       </div>
     </div>

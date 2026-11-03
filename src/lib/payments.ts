@@ -1,130 +1,120 @@
 import "server-only";
-import { createHash } from "crypto";
 import { prisma } from "./prisma";
 import { getGroup, getSecret } from "./settings";
-import { methodDef } from "./payment-methods";
+import { methodDef, PAYMENT_METHODS } from "./payment-methods";
 import { randomToken } from "./crypto";
 import { notify, esc } from "./telegram";
 import { formatPrice } from "./utils";
 
 export type PaymentsCfg = Record<string, unknown> & {
-  provider: "test" | "yookassa" | "tbank";
-  yookassaShopId: string;
-  tbankTerminalKey: string;
+  provider: "platega" | "test";
+  plategaMerchantId: string;
+  plategaCardCode: number;
+  kaspiPayLink: string;
+  kaspiQr: string;
+  kaspiRate: number;
+  kaspiInstructions: string;
   paymentTimeoutMinutes: number;
-  installmentParts: number;
-  creditMonths: number;
-  creditRate: number;
-  creditMinAmount: number;
-  cashMaxAmount: number;
 };
 
 export const paymentsCfg = () => getGroup<PaymentsCfg>("payments");
 
-const rub = (kopecksOrRub: number) => (Math.round(kopecksOrRub * 100) / 100).toFixed(2);
+// ---------------- Platega (https://app.platega.io) ----------------
+// Request format follows the Platega API as implemented by the public SDK (github.com/DOFER998/aioplatega):
+// auth headers X-MerchantId / X-Secret, POST /transaction/process, GET /transaction/{id}, POST /transaction/{id}/cancel.
+// PLATEGA_API_URL can point to a mock server in tests; production always uses the official host
+const PLATEGA_URL = process.env.NODE_ENV === "production" && !process.env.PLATEGA_API_URL_ALLOW ? "https://app.platega.io" : process.env.PLATEGA_API_URL || "https://app.platega.io";
 
-// ---------------- ЮKassa ----------------
-async function yookassaAuth() {
+async function plategaCreds() {
   const cfg = await paymentsCfg();
-  const secret = await getSecret("payments", "yookassaSecret");
-  if (!cfg.yookassaShopId || !secret) throw new Error("ЮKassa не настроена: укажите shopId и секретный ключ");
-  return "Basic " + Buffer.from(`${cfg.yookassaShopId}:${secret}`).toString("base64");
+  const secret = await getSecret("payments", "plategaSecret");
+  if (!cfg.plategaMerchantId || !secret) throw new Error("Platega не настроена: укажите Merchant ID и API-ключ в «Глобальные настройки → Платежи»");
+  return { merchantId: cfg.plategaMerchantId.trim(), secret };
 }
 
-async function yookassaRequest<T>(path: string, init: { method: string; body?: unknown; idempotenceKey?: string }) {
-  const res = await fetch(`https://api.yookassa.ru/v3${path}`, {
+export async function plategaConfigured() {
+  const cfg = await paymentsCfg();
+  return Boolean(cfg.plategaMerchantId && (await getSecret("payments", "plategaSecret")));
+}
+
+async function plategaRequest<T>(path: string, init: { method: "GET" | "POST"; body?: unknown }) {
+  const { merchantId, secret } = await plategaCreds();
+  const res = await fetch(PLATEGA_URL + path, {
     method: init.method,
-    headers: {
-      Authorization: await yookassaAuth(),
-      "Content-Type": "application/json",
-      ...(init.idempotenceKey ? { "Idempotence-Key": init.idempotenceKey } : {}),
-    },
+    headers: { "X-MerchantId": merchantId, "X-Secret": secret, Accept: "application/json", ...(init.body ? { "Content-Type": "application/json" } : {}) },
     body: init.body ? JSON.stringify(init.body) : undefined,
     signal: AbortSignal.timeout(15000),
   });
-  const data = (await res.json().catch(() => ({}))) as T & { description?: string };
-  if (!res.ok) throw new Error(`ЮKassa: ${data.description || res.status}`);
-  return data;
+  const text = await res.text();
+  let data: unknown = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { message: text.slice(0, 200) };
+  }
+  if (!res.ok) {
+    const d = data as { message?: string; error?: string; title?: string };
+    throw new Error(`Platega: ${d.message || d.error || d.title || "HTTP " + res.status}`);
+  }
+  return data as T;
 }
 
-// ---------------- Т-Банк ----------------
-/** Token = SHA-256 of concatenated values of root scalar params + Password, sorted by key (Т-Банк spec). */
-export function tbankToken(params: Record<string, unknown>, password: string) {
-  const entries = Object.entries({ ...params, Password: password })
-    .filter(([k, v]) => k !== "Token" && v !== undefined && v !== null && typeof v !== "object")
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  return createHash("sha256").update(entries.map(([, v]) => String(v)).join("")).digest("hex");
-}
-
-async function tbankRequest<T>(method: string, params: Record<string, unknown>) {
+/** Verifies callback credentials (Platega echoes the merchant id and secret in headers). */
+export async function plategaCallbackAuthentic(headers: Headers) {
   const cfg = await paymentsCfg();
-  const password = await getSecret("payments", "tbankPassword");
-  if (!cfg.tbankTerminalKey || !password) throw new Error("Т-Банк не настроен: укажите TerminalKey и пароль");
-  const body = { TerminalKey: cfg.tbankTerminalKey, ...params };
-  const res = await fetch(`https://securepay.tinkoff.ru/v2/${method}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...body, Token: tbankToken(body, password) }),
-    signal: AbortSignal.timeout(15000),
-  });
-  const data = (await res.json().catch(() => ({}))) as T & { Success?: boolean; Message?: string; Details?: string };
-  if (!res.ok || data.Success === false) throw new Error(`Т-Банк: ${data.Message || data.Details || res.status}`);
-  return data;
+  const secret = await getSecret("payments", "plategaSecret");
+  if (!cfg.plategaMerchantId || !secret) return false;
+  const { timingSafeEqual } = await import("crypto");
+  const eq = (a: string, b: string) => {
+    const x = Buffer.from(a);
+    const y = Buffer.from(b);
+    return x.length === y.length && timingSafeEqual(x, y);
+  };
+  const mid = headers.get("x-merchantid") ?? headers.get("x-merchant-id") ?? "";
+  const sec = headers.get("x-secret") ?? "";
+  return eq(mid, cfg.plategaMerchantId.trim()) && eq(sec, secret);
 }
 
 // ---------------- common ----------------
 
-/** Creates a payment for an order. Returns the URL the buyer must be redirected to (or null for offline methods). */
+/** Creates a payment for an order. Returns the URL the buyer must be redirected to. */
 export async function createPayment(orderId: string, origin: string): Promise<{ paymentId: string; redirectUrl: string | null }> {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) throw new Error("Заказ не найден");
   const def = methodDef(order.paymentMethod);
   if (!def) throw new Error("Неизвестный способ оплаты");
   const cfg = await paymentsCfg();
-  const provider = !def.online ? (order.paymentMethod === "invoice" ? "invoice" : "offline") : cfg.provider;
+  const provider = def.group === "kaspi" ? "kaspi" : cfg.provider === "test" ? "test" : "platega";
   const payment = await prisma.payment.create({
     data: { orderId: order.id, method: order.paymentMethod, provider, amount: order.total, idempotenceKey: randomToken(18) },
   });
-  if (!def.online) {
-    return { paymentId: payment.id, redirectUrl: order.paymentMethod === "invoice" ? `/pay/invoice/${order.id}` : null };
+  if (provider === "kaspi") {
+    const url = `/pay/kaspi/${payment.id}`;
+    await prisma.payment.update({ where: { id: payment.id }, data: { confirmationUrl: url } });
+    return { paymentId: payment.id, redirectUrl: url };
   }
-  const returnUrl = `${origin}/pay/return?p=${payment.id}`;
-  const description = `Заказ №${order.number} в TECHMARKET`;
-  try {
-    if (provider === "yookassa") {
-      const r = await yookassaRequest<{ id: string; status: string; confirmation?: { confirmation_url?: string } }>("/payments", {
-        method: "POST",
-        idempotenceKey: payment.idempotenceKey,
-        body: {
-          amount: { value: rub(order.total), currency: "RUB" },
-          capture: true,
-          confirmation: { type: "redirect", return_url: returnUrl },
-          ...(def.yookassaType && !["mirpay", "wallet"].includes(def.key) ? { payment_method_data: { type: def.yookassaType } } : {}),
-          description,
-          metadata: { orderId: order.id, paymentId: payment.id },
-        },
-      });
-      const url = r.confirmation?.confirmation_url ?? null;
-      await prisma.payment.update({ where: { id: payment.id }, data: { externalId: r.id, confirmationUrl: url, status: r.status === "succeeded" ? "SUCCEEDED" : "PENDING" } });
-      return { paymentId: payment.id, redirectUrl: url };
-    }
-    if (provider === "tbank") {
-      const r = await tbankRequest<{ PaymentId: string | number; PaymentURL: string }>("Init", {
-        Amount: order.total * 100,
-        OrderId: payment.id,
-        Description: description,
-        SuccessURL: returnUrl,
-        FailURL: returnUrl,
-        NotificationURL: `${origin}/api/payments/tbank`,
-        DATA: { Email: order.email, Phone: order.phone },
-      });
-      await prisma.payment.update({ where: { id: payment.id }, data: { externalId: String(r.PaymentId), confirmationUrl: r.PaymentURL } });
-      return { paymentId: payment.id, redirectUrl: r.PaymentURL };
-    }
-    // test acquiring — our own page, no money is charged
+  if (provider === "test") {
     const url = `/pay/${payment.id}`;
     await prisma.payment.update({ where: { id: payment.id }, data: { confirmationUrl: url } });
     return { paymentId: payment.id, redirectUrl: url };
+  }
+  const returnUrl = `${origin}/pay/return?p=${payment.id}`;
+  try {
+    const code = def.key === "platega_card" ? Number(cfg.plategaCardCode) || def.plategaCode : def.plategaCode;
+    const r = await plategaRequest<{ transactionId?: string; redirect?: string; status?: string }>("/transaction/process", {
+      method: "POST",
+      body: {
+        paymentMethod: code,
+        paymentDetails: { amount: order.total, currency: "RUB" },
+        description: `Заказ №${order.number} в TECHMARKET`,
+        return: returnUrl,
+        failedUrl: returnUrl,
+        payload: payment.id,
+      },
+    });
+    if (!r.transactionId || !r.redirect) throw new Error("Platega не вернула ссылку на оплату");
+    await prisma.payment.update({ where: { id: payment.id }, data: { externalId: String(r.transactionId), confirmationUrl: r.redirect } });
+    return { paymentId: payment.id, redirectUrl: r.redirect };
   } catch (e) {
     await prisma.payment.update({ where: { id: payment.id }, data: { status: "CANCELED", error: (e as Error).message.slice(0, 500) } });
     throw e;
@@ -148,52 +138,64 @@ export async function markPaymentSucceeded(paymentId: string, meta?: Record<stri
 
 export async function markPaymentCanceled(paymentId: string, reason?: string) {
   const p = await prisma.payment.findUnique({ where: { id: paymentId } });
-  if (!p || p.status !== "PENDING") return;
+  if (!p || !["PENDING", "WAITING"].includes(p.status)) return;
   await prisma.payment.update({ where: { id: p.id }, data: { status: "CANCELED", error: reason?.slice(0, 500) } });
 }
 
-/** Asks the provider for the real status (used on return page and to verify webhooks). */
+/** Asks Platega for the real status — the only source of truth for marking an order paid. */
 export async function syncPayment(paymentId: string) {
   const p = await prisma.payment.findUnique({ where: { id: paymentId } });
-  if (!p || p.status !== "PENDING" || !p.externalId) return p;
-  if (p.provider === "yookassa") {
-    const r = await yookassaRequest<{ status: string; cancellation_details?: { reason?: string } }>(`/payments/${encodeURIComponent(p.externalId)}`, { method: "GET" });
-    if (r.status === "succeeded") await markPaymentSucceeded(p.id);
-    else if (r.status === "canceled") await markPaymentCanceled(p.id, r.cancellation_details?.reason);
-  } else if (p.provider === "tbank") {
-    const r = await tbankRequest<{ Status: string }>("GetState", { PaymentId: p.externalId });
-    if (["CONFIRMED", "AUTHORIZED"].includes(r.Status)) await markPaymentSucceeded(p.id);
-    else if (["REJECTED", "CANCELED", "DEADLINE_EXPIRED", "AUTH_FAIL"].includes(r.Status)) await markPaymentCanceled(p.id, r.Status);
+  if (!p || p.provider !== "platega" || !p.externalId || !["PENDING", "SUCCEEDED"].includes(p.status)) return p;
+  const r = await plategaRequest<{ status?: string; paymentDetails?: { amount?: number; currency?: string }; payload?: string }>(`/transaction/${encodeURIComponent(p.externalId)}`, { method: "GET" });
+  const status = String(r.status ?? "").toUpperCase();
+  if (status === "CONFIRMED" && p.status === "PENDING") {
+    const amount = Number(r.paymentDetails?.amount);
+    if (Number.isFinite(amount) && Math.round(amount) !== p.amount) {
+      await prisma.payment.update({ where: { id: p.id }, data: { error: `Сумма в Platega (${amount}) не совпадает с заказом (${p.amount}) — проверьте вручную` } });
+      return prisma.payment.findUnique({ where: { id: paymentId } });
+    }
+    await markPaymentSucceeded(p.id, { plategaStatus: status });
+  } else if (["CANCELED", "EXPIRED", "FAILED"].includes(status) && p.status === "PENDING") {
+    await markPaymentCanceled(p.id, `Platega: ${status}`);
+  } else if (status === "CHARGEBACKED" && p.status === "SUCCEEDED") {
+    await prisma.payment.update({ where: { id: p.id }, data: { status: "REFUNDED", refundedAmount: p.amount, error: "Chargeback" } });
+    await prisma.order.update({ where: { id: p.orderId }, data: { paymentStatus: "refunded" } });
   }
   return prisma.payment.findUnique({ where: { id: paymentId } });
 }
 
-/** Refunds the successful payment of an order (full amount by default). */
+/** Refunds the successful payment of an order. Platega cancels the whole transaction. */
 export async function refundOrder(orderId: string, amount?: number) {
   const p = await prisma.payment.findFirst({ where: { orderId, status: { in: ["SUCCEEDED", "PARTIAL_REFUND"] } }, orderBy: { createdAt: "desc" } });
   if (!p) return { refunded: 0, note: "Успешных платежей нет" };
   const left = p.amount - p.refundedAmount;
-  const sum = Math.min(amount ?? left, left);
+  let sum = Math.min(amount ?? left, left);
   if (sum <= 0) return { refunded: 0, note: "Уже возвращено" };
-  if (p.provider === "yookassa" && p.externalId) {
-    await yookassaRequest("/refunds", { method: "POST", idempotenceKey: randomToken(18), body: { payment_id: p.externalId, amount: { value: rub(sum), currency: "RUB" } } });
-  } else if (p.provider === "tbank" && p.externalId) {
-    await tbankRequest("Cancel", { PaymentId: p.externalId, Amount: sum * 100 });
-  }
-  // test / offline / invoice: refund is recorded; offline money is returned manually
+  let note = "Верните деньги покупателю вручную";
+  if (p.provider === "platega" && p.externalId) {
+    // Platega API refunds the whole transaction
+    const r = await plategaRequest<{ accepted?: boolean; manualControlRequired?: boolean; message?: string }>(`/transaction/${encodeURIComponent(p.externalId)}/cancel`, { method: "POST" });
+    sum = left;
+    note = r.accepted === false ? "Platega приняла запрос на ручную обработку возврата" : "Возврат через Platega";
+  } else if (p.provider === "kaspi") note = "Верните деньги покупателю через Kaspi Pay (возврат в кабинете Kaspi)";
+  else if (p.provider === "test") note = "Тестовый режим";
   const refundedAmount = p.refundedAmount + sum;
   const full = refundedAmount >= p.amount;
   await prisma.payment.update({ where: { id: p.id }, data: { refundedAmount, status: full ? "REFUNDED" : "PARTIAL_REFUND" } });
   if (full) await prisma.order.update({ where: { id: orderId }, data: { paymentStatus: "refunded" } });
-  return { refunded: sum, note: p.provider === "offline" || p.provider === "invoice" ? "Верните деньги покупателю вручную" : `Возврат через ${p.provider}` };
+  return { refunded: sum, note };
 }
 
-/** Cancels unpaid online orders after the payment timeout and returns goods to stock. */
+/** Cancels unpaid orders after the payment timeout and returns goods to stock. */
 export async function expireUnpaidOrders() {
   const cfg = await paymentsCfg();
   const deadline = new Date(Date.now() - Math.max(10, Number(cfg.paymentTimeoutMinutes) || 60) * 60_000);
-  const onlineKeys = (await import("./payment-methods")).PAYMENT_METHODS.filter((m) => m.online).map((m) => m.key);
-  const stale = await prisma.order.findMany({ where: { status: "NEW", paymentStatus: "pending", paymentMethod: { in: onlineKeys }, createdAt: { lt: deadline } }, select: { id: true }, take: 50 });
+  const keys = PAYMENT_METHODS.map((m) => m.key);
+  const stale = await prisma.order.findMany({
+    where: { status: "NEW", paymentStatus: "pending", paymentMethod: { in: keys }, createdAt: { lt: deadline }, payments: { none: { status: "WAITING" } } },
+    select: { id: true },
+    take: 50,
+  });
   if (!stale.length) return 0;
   const { changeOrderStatus } = await import("./orders");
   for (const o of stale) {

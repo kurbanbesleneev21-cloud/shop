@@ -4,7 +4,7 @@ import { checkoutSchema } from "@/lib/validation";
 import { priceCart, commissionRate, afterOrderCreated } from "@/lib/orders";
 import { getGroup } from "@/lib/settings";
 import { dbLimit } from "@/lib/rate-limit";
-import { createPayment, expireUnpaidOrders, paymentsCfg } from "@/lib/payments";
+import { createPayment, expireUnpaidOrders, paymentsCfg, plategaConfigured } from "@/lib/payments";
 import { methodDef } from "@/lib/payment-methods";
 
 export const GET = route({ auth: "user" }, async (_req, { user }) => {
@@ -22,7 +22,8 @@ export const POST = route({}, async (req, { user, ip }) => {
   const payments = await paymentsCfg();
   const def = methodDef(data.paymentMethod);
   if (!def || payments[data.paymentMethod] === false || (payments[data.paymentMethod] === undefined && !def.defaultEnabled)) throw new ApiError(400, "Этот способ оплаты недоступен");
-  if (data.paymentMethod === "invoice" && (!data.companyName || !data.companyInn)) throw new ApiError(400, "Для оплаты по счёту укажите название организации и ИНН");
+  if (def.group === "platega" && payments.provider !== "test" && !(await plategaConfigured())) throw new ApiError(503, "Онлайн-оплата временно недоступна. Выберите другой способ оплаты.");
+  if (def.group === "kaspi" && !/^https:\/\//.test(String(payments.kaspiPayLink || "")) && !payments.kaspiQr) throw new ApiError(503, "Оплата через Kaspi временно недоступна");
   expireUnpaidOrders().catch(() => undefined);
   if (data.deliveryMethod !== "pickup" && (!data.city || !data.address)) throw new ApiError(400, "Укажите город и адрес доставки");
 
@@ -40,10 +41,6 @@ export const POST = route({}, async (req, { user, ip }) => {
       return { productId: l.productId, sellerId: l.sellerId, title: l.title, sku: l.sku, image: l.image, price: l.price, qty: l.qty, commissionRate: rate, commission: Math.round((l.price * l.qty * rate) / 100) };
     }),
   );
-  if ((data.paymentMethod === "installments" || data.paymentMethod === "credit") && priced.total < Number(payments.creditMinAmount || 0))
-    throw new ApiError(400, `${def.label}: доступно для заказов от ${payments.creditMinAmount} ₽`);
-  if (!def.online && data.paymentMethod !== "invoice" && Number(payments.cashMaxAmount) > 0 && priced.total > Number(payments.cashMaxAmount))
-    throw new ApiError(400, `Оплата при получении доступна для заказов до ${payments.cashMaxAmount} ₽`);
 
   const order = await prisma.$transaction(async (tx) => {
     for (const it of items) {
@@ -61,8 +58,6 @@ export const POST = route({}, async (req, { user, ip }) => {
         userId: user?.id ?? null,
         status: "NEW",
         paymentStatus: "pending",
-        companyName: data.paymentMethod === "invoice" ? data.companyName : null,
-        companyInn: data.paymentMethod === "invoice" ? data.companyInn : null,
         subtotal: priced.subtotal,
         discount: priced.discount,
         deliveryPrice: priced.deliveryPrice,

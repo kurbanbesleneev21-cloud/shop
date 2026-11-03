@@ -11,10 +11,10 @@ function buildCsp(nonce: string) {
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com https://images.unsplash.com https://mc.yandex.ru https://www.google-analytics.com",
     "connect-src 'self' https://*.public.blob.vercel-storage.com https://mc.yandex.ru https://*.google-analytics.com https://www.googletagmanager.com",
-    "frame-src 'self' https://yoomoney.ru https://*.yoomoney.ru https://securepay.tinkoff.ru",
+    "frame-src 'self' https://app.platega.io https://pay.kaspi.kz",
     "frame-ancestors 'self'",
     "base-uri 'self'",
-    "form-action 'self' https://yoomoney.ru https://*.yoomoney.ru https://securepay.tinkoff.ru https://*.tbank.ru",
+    "form-action 'self' https://app.platega.io https://pay.kaspi.kz",
     "object-src 'none'",
     "upgrade-insecure-requests",
   ].join("; ");

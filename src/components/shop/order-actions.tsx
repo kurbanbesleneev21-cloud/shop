@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CreditCard, FileText, Loader2 } from "lucide-react";
+import { CreditCard, Loader2 } from "lucide-react";
 import { useApp } from "../providers";
 import { api } from "@/lib/client-api";
 import { PAYMENT_METHODS, methodDef } from "@/lib/payment-methods";
@@ -16,8 +16,8 @@ export function OrderActions({ id, status, paymentStatus, paymentMethod }: { id:
   const [reason, setReason] = useState("");
   const [method, setMethod] = useState(paymentMethod);
   const def = methodDef(paymentMethod);
-  const canPay = status === "NEW" && paymentStatus === "pending" && paymentMethod !== "invoice" && (def?.online || false);
-  const onlineMethods = PAYMENT_METHODS.filter((m) => m.online && config.payments.enabled.includes(m.key));
+  const canPay = status === "NEW" && paymentStatus === "pending" && Boolean(def);
+  const onlineMethods = PAYMENT_METHODS.filter((m) => config.payments.enabled.includes(m.key));
 
   async function act(action: "cancel" | "return") {
     setBusy(action);
@@ -57,7 +57,6 @@ export function OrderActions({ id, status, paymentStatus, paymentMethod }: { id:
           <button disabled={!!busy} onClick={pay} className="btn-primary w-full">{busy === "pay" ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}Оплатить</button>
         </div>
       )}
-      {paymentMethod === "invoice" && <Link href={`/pay/invoice/${id}`} className="btn-outline w-full"><FileText size={16} />Счёт на оплату</Link>}
       {["NEW", "CONFIRMED", "PAID"].includes(status) && <button disabled={!!busy} onClick={() => setDialog(dialog === "cancel" ? null : "cancel")} className="btn-outline w-full">Отменить заказ</button>}
       {status === "DELIVERED" && <button disabled={!!busy} onClick={() => setDialog(dialog === "return" ? null : "return")} className="btn-outline w-full">Оформить возврат</button>}
       {dialog && (

@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Lock, ShieldCheck, Smartphone } from "lucide-react";
+import { Loader2, Lock, ShieldCheck } from "lucide-react";
 import { PaymentIcon } from "./payment-picker";
 import { api } from "@/lib/client-api";
-import { creditMonthly, luhnValid, methodDef } from "@/lib/payment-methods";
+import { luhnValid, methodDef } from "@/lib/payment-methods";
 import { cn, formatPrice } from "@/lib/utils";
 
 function fakeQr(seed: string) {
@@ -20,7 +20,7 @@ function fakeQr(seed: string) {
   return cells;
 }
 
-export function TestAcquiring({ payment, installmentParts, creditMonths, creditRate }: { payment: { id: string; method: string; amount: number; status: string; orderNumber: number }; installmentParts: number; creditMonths: number; creditRate: number }) {
+export function TestAcquiring({ payment }: { payment: { id: string; method: string; amount: number; status: string; orderNumber: number } }) {
   const router = useRouter();
   const def = methodDef(payment.method);
   const [card, setCard] = useState("");
@@ -28,7 +28,7 @@ export function TestAcquiring({ payment, installmentParts, creditMonths, creditR
   const [cvc, setCvc] = useState("");
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
-  const isCard = ["card", "mirpay", "wallet"].includes(payment.method);
+  const isCard = ["platega_card", "platega_intl"].includes(payment.method);
 
   async function act(action: "pay" | "fail") {
     setErr("");
@@ -58,7 +58,7 @@ export function TestAcquiring({ payment, installmentParts, creditMonths, creditR
           <div className="mt-1 flex items-center gap-2 text-sm text-white/80">{def && <PaymentIcon icon={def.icon} size={16} />}{def?.label}</div>
         </div>
         <div className="space-y-4 p-5">
-          <div className="flex items-start gap-2 rounded-xl bg-brand-50 p-3 text-xs text-brand"><ShieldCheck size={16} className="shrink-0" />Тестовый режим платёжной системы: деньги не списываются. Подключите ЮKassa или Т-Банк в админке, чтобы принимать реальные платежи.</div>
+          <div className="flex items-start gap-2 rounded-xl bg-brand-50 p-3 text-xs text-brand"><ShieldCheck size={16} className="shrink-0" />Тестовый режим платёжной системы: деньги не списываются. Укажите ключи Platega в админке и включите боевой режим, чтобы принимать реальные платежи.</div>
 
           {isCard && (
             <div className="space-y-3">
@@ -70,7 +70,7 @@ export function TestAcquiring({ payment, installmentParts, creditMonths, creditR
               <p className="text-xs text-ink-500">Тестовые карты: 4242 4242 4242 4242 — успешно, 4000 0000 0000 0002 — отказ банка. Любой будущий срок и CVC.</p>
             </div>
           )}
-          {payment.method === "sbp" && (
+          {payment.method === "platega_sbp" && (
             <div className="text-center">
               <div className="mx-auto grid w-48 grid-cols-[repeat(25,1fr)] gap-0 rounded-xl border border-ink-100 bg-white p-3" aria-label="QR-код СБП (тест)">
                 {qr.map((on, i) => <span key={i} className={cn("aspect-square", on ? "bg-ink" : "bg-white")} />)}
@@ -78,30 +78,11 @@ export function TestAcquiring({ payment, installmentParts, creditMonths, creditR
               <p className="mt-2 text-sm text-ink-500">Отсканируйте QR-код в приложении банка</p>
             </div>
           )}
-          {["sberpay", "tpay", "yoomoney"].includes(payment.method) && (
-            <div className="flex items-center gap-3 rounded-xl border border-ink-100 p-4"><Smartphone className="text-brand" /><div className="text-sm">Мы отправили запрос в приложение <b>{def?.label}</b>. Подтвердите платёж.</div></div>
-          )}
-          {payment.method === "installments" && (
-            <div className="space-y-2 rounded-xl border border-ink-100 p-4 text-sm">
-              <div className="font-semibold">График платежей без переплаты</div>
-              {Array.from({ length: installmentParts }).map((_, i) => (
-                <div key={i} className="flex justify-between"><span className="text-ink-500">{i === 0 ? "Сегодня" : `Через ${i * 2} нед.`}</span><b>{formatPrice(Math.ceil(payment.amount / installmentParts))}</b></div>
-              ))}
-            </div>
-          )}
-          {payment.method === "credit" && (
-            <div className="space-y-1 rounded-xl border border-ink-100 p-4 text-sm">
-              <div className="font-semibold">Заявка на кредит</div>
-              <div className="flex justify-between"><span className="text-ink-500">Срок</span><b>{creditMonths} мес.</b></div>
-              <div className="flex justify-between"><span className="text-ink-500">Ставка</span><b>{creditRate}% годовых</b></div>
-              <div className="flex justify-between"><span className="text-ink-500">Ежемесячный платёж</span><b>{formatPrice(creditMonthly(payment.amount, creditMonths, creditRate))}</b></div>
-            </div>
-          )}
 
           {err && <div className="rounded-xl border border-ink-200 bg-ink-50 p-3 text-sm font-medium">{err}</div>}
           <button className="btn-primary btn-lg w-full" disabled={!!busy} onClick={() => act("pay")}>
             {busy === "pay" ? <Loader2 size={18} className="animate-spin" /> : <Lock size={16} />}
-            {payment.method === "credit" ? "Отправить заявку и оплатить" : payment.method === "sbp" ? "Я оплатил(а)" : `Оплатить ${formatPrice(payment.amount)}`}
+            {payment.method === "platega_sbp" ? "Я оплатил(а)" : `Оплатить ${formatPrice(payment.amount)}`}
           </button>
           <button className="btn-ghost w-full" disabled={!!busy} onClick={() => act("fail")}>Отменить оплату</button>
         </div>

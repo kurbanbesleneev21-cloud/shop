@@ -152,9 +152,9 @@ export async function changeOrderStatus(orderId: string, status: string, actor: 
       const r = await refundOrder(order.id);
       if (r.refunded) await prisma.orderEvent.create({ data: { orderId: order.id, status: status as never, note: `Возврат средств ${formatPrice(r.refunded)}: ${r.note}` } });
     }
-    if (status === "DELIVERED" || status === "PAID") {
-      // cash / card on delivery / invoice: money is received when the order is delivered or marked as paid
-      const pending = await prisma.payment.findFirst({ where: { orderId: order.id, status: "PENDING", provider: { in: ["offline", "invoice"] } } });
+    if (status === "PAID") {
+      // Kaspi: when the administrator marks the order as paid, the reported payment is confirmed
+      const pending = await prisma.payment.findFirst({ where: { orderId: order.id, status: { in: ["PENDING", "WAITING"] }, provider: "kaspi" } });
       if (pending) await markPaymentSucceeded(pending.id);
     }
   } catch (e) {

@@ -19,7 +19,7 @@ export const PATCH = route<{ id: string }>({ auth: "admin" }, async (req, { user
   if (!o) throw new ApiError(404, "Заказ не найден");
   if (data.action) {
     if (data.action === "confirmPayment") {
-      let p = await prisma.payment.findFirst({ where: { orderId: o.id, status: "PENDING" }, orderBy: { createdAt: "desc" } });
+      let p = await prisma.payment.findFirst({ where: { orderId: o.id, status: { in: ["PENDING", "WAITING"] } }, orderBy: { createdAt: "desc" } });
       if (!p) p = await prisma.payment.create({ data: { orderId: o.id, method: o.paymentMethod, provider: "manual", amount: o.total, idempotenceKey: randomToken(18) } });
       await markPaymentSucceeded(p.id, { confirmedBy: user!.email });
     } else if (data.action === "refund") {

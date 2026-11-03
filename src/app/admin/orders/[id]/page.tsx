@@ -61,8 +61,7 @@ export default async function OrderAdmin({ params }: { params: Promise<{ id: str
                 ))}
               </ul>
             ) : <p className="text-ink-500">Платежей нет</p>}
-            {o.paymentMethod === "invoice" && <a href={`/pay/invoice/${o.id}`} target="_blank" className="link mt-2 inline-block">Счёт на оплату →</a>}
-            {o.companyName && <div className="mt-2">Покупатель-юрлицо: {o.companyName}, ИНН {o.companyInn}</div>}
+            {o.payments.some((p) => p.status === "WAITING") && <div className="mt-2 rounded-lg bg-brand-50 p-2.5 text-brand">Покупатель сообщил об оплате через Kaspi. Проверьте поступление в Kaspi Pay и нажмите «Подтвердить оплату».</div>}
           </div>
           <div className="space-y-2 rounded-card bg-white p-5 text-sm shadow-card">
             <h2 className="mb-2 font-bold">Покупатель</h2>

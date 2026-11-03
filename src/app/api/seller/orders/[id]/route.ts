@@ -23,7 +23,7 @@ export const PATCH = route<{ id: string }>({ auth: "seller" }, async (req, { use
   if (!o || !sellerId || !o.items.some((i) => i.sellerId === sellerId)) throw new ApiError(404, "Заказ не найден");
   if (o.items.some((i) => i.sellerId !== sellerId)) throw new ApiError(403, "Заказ содержит товары других продавцов — статус меняет маркетплейс");
   if (!FLOW[data.status].includes(o.status)) throw new ApiError(400, "Нельзя изменить статус на этом этапе");
-  if (data.status === "SHIPPED" && o.paymentStatus !== "paid" && !["cash", "card_on_delivery"].includes(o.paymentMethod)) throw new ApiError(400, "Заказ ещё не оплачен покупателем — отгрузка невозможна");
+  if (data.status === "SHIPPED" && o.paymentStatus !== "paid") throw new ApiError(400, "Заказ ещё не оплачен покупателем — отгрузка невозможна");
   if (data.status === "SHIPPED" && o.deliveryMethod !== "pickup" && !data.trackingNumber) throw new ApiError(400, "Укажите трек-номер отправления");
   if (data.status === "CANCELLED" && !data.reason) throw new ApiError(400, "Укажите причину отмены");
   if (data.trackingNumber) await prisma.order.update({ where: { id: o.id }, data: { trackingNumber: data.trackingNumber } });
