@@ -153,9 +153,11 @@ export const SETTINGS_GROUPS: SettingGroup[] = [
     key: "sms",
     title: "SMS",
     fields: [
-      select("provider", "SMS-провайдер", "none", [["none", "Не подключён"], ["smsru", "SMS.ru"], ["smsc", "SMSC.ru"]]),
+      select("provider", "SMS-провайдер", "none", [["none", "Не подключён"], ["smsaero", "SMS Aero"], ["smsru", "SMS.ru"], ["smsc", "SMSC.ru"]]),
       text("sender", "Имя отправителя (согласованное с провайдером)", ""),
       secret("smsruApiId", "SMS.ru: api_id"),
+      text("smsaeroEmail", "SMS Aero: email аккаунта", ""),
+      secret("smsaeroApiKey", "SMS Aero: API-ключ"),
       text("smscLogin", "SMSC.ru: логин", ""),
       secret("smscPassword", "SMSC.ru: пароль"),
       bool("devShowCode", "Показывать код на экране, пока SMS-провайдер не подключён", true, "Только для запуска и тестов. Отключите после подключения провайдера."),

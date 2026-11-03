@@ -2,14 +2,28 @@ import "server-only";
 import { getGroup, getSecret } from "./settings";
 
 export async function smsConfigured() {
-  const cfg = await getGroup<{ provider: string; smscLogin: string }>("sms");
+  const cfg = await getGroup<{ provider: string; smscLogin: string; smsaeroEmail: string }>("sms");
+  if (cfg.provider === "smsaero") return Boolean(cfg.smsaeroEmail && (await getSecret("sms", "smsaeroApiKey")));
   if (cfg.provider === "smsru") return Boolean(await getSecret("sms", "smsruApiId"));
   if (cfg.provider === "smsc") return Boolean(cfg.smscLogin && (await getSecret("sms", "smscPassword")));
   return false;
 }
 
 export async function sendSms(phone: string, text: string) {
-  const cfg = await getGroup<{ provider: string; sender: string; smscLogin: string }>("sms");
+  const cfg = await getGroup<{ provider: string; sender: string; smscLogin: string; smsaeroEmail: string }>("sms");
+  if (cfg.provider === "smsaero") {
+    // SMS Aero API v2: https://gate.smsaero.ru/v2/sms/send (Basic auth: account email + API key)
+    const key = await getSecret("sms", "smsaeroApiKey");
+    if (!cfg.smsaeroEmail || !key) throw new Error("SMS-провайдер не настроен");
+    const params = new URLSearchParams({ number: phone.replace(/\D/g, ""), text, sign: cfg.sender || "SMS Aero" });
+    const res = await fetch("https://gate.smsaero.ru/v2/sms/send?" + params.toString(), {
+      headers: { Authorization: "Basic " + Buffer.from(`${cfg.smsaeroEmail.trim()}:${key}`).toString("base64"), Accept: "application/json" },
+      signal: AbortSignal.timeout(10000),
+    });
+    const data = (await res.json().catch(() => ({}))) as { success?: boolean; message?: string };
+    if (!res.ok || !data.success) throw new Error(data.message || `SMS Aero: ошибка ${res.status}`);
+    return true;
+  }
   if (cfg.provider === "smsc") {
     const psw = await getSecret("sms", "smscPassword");
     if (!cfg.smscLogin || !psw) throw new Error("SMS-провайдер не настроен");
