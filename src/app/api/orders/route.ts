@@ -26,7 +26,8 @@ export const POST = route({}, async (req, { user, ip }) => {
   if (def.group === "platega" && payments.provider !== "test" && !(await plategaConfigured())) throw new ApiError(503, "Онлайн-оплата временно недоступна. Выберите другой способ оплаты.");
   if (def.group === "kaspi" && !/^https:\/\//.test(String(payments.kaspiPayLink || "")) && !payments.kaspiQr) throw new ApiError(503, "Оплата через Kaspi временно недоступна");
   expireUnpaidOrders().catch(() => undefined);
-  if (data.deliveryMethod !== "pickup" && (!data.city || !data.address)) throw new ApiError(400, "Укажите город и адрес доставки");
+  if (!data.city || !data.address) throw new ApiError(400, data.deliveryMethod === "ozon" ? "Укажите город и адрес пункта выдачи Ozon" : "Укажите город и адрес доставки");
+  if (data.deliveryMethod === "post" && !/^\d{6}$/.test(data.zip)) throw new ApiError(400, "Укажите почтовый индекс (6 цифр)");
 
   const priced = await priceCart(data.items, data.promoCode || undefined, data.deliveryMethod);
   if (data.promoCode && priced.promoError) throw new ApiError(400, priced.promoError);
@@ -71,7 +72,7 @@ export const POST = route({}, async (req, { user, ip }) => {
         phone: data.phone,
         email: data.email,
         city: data.city || null,
-        address: data.address || null,
+        address: (data.deliveryMethod === "post" ? `${data.zip}, ${data.address}` : `ПВЗ Ozon: ${data.address}`).slice(0, 400),
         comment: data.comment || null,
         items: { create: items },
         events: { create: [{ status: "NEW", note: `Заказ оформлен · оплата: ${def.label}` }] },

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import type { SavedAddress } from "./address-book";
-import { Loader2, MapPin, Package, Store, Truck, Lock, ShieldCheck } from "lucide-react";
+import { Loader2, MapPin, Package, Store, Lock, ShieldCheck } from "lucide-react";
 import { PaymentPicker } from "./payment-picker";
 import { methodDef } from "@/lib/payment-methods";
 import { useApp, useHydrated } from "../providers";
@@ -15,15 +15,18 @@ import { cn, formatPrice } from "@/lib/utils";
 
 type Priced = { subtotal: number; discount: number; deliveryPrice: number; total: number; promoError?: string; deliveryOptions: { method: string; price: number }[]; lines: { productId: string; available: boolean }[] };
 
-const DELIVERY = { courier: { label: "Курьером", icon: Truck, hint: "Доставка до двери" }, pickup: { label: "Пункт выдачи", icon: Store, hint: "Бесплатное хранение 7 дней" }, post: { label: "Почта России", icon: Package, hint: "В любой населённый пункт" } } as const;
+const DELIVERY = {
+  ozon: { label: "Пункт выдачи Ozon", icon: Store, hint: "Заберёте в удобном ПВЗ Ozon", days: "ozonDays" },
+  post: { label: "Почта России", icon: Package, hint: "В любое отделение, в любой населённый пункт", days: "postDays" },
+} as const;
 
 export function CheckoutView() {
   const { cart: rawCart, user, config, clearCart, openAuth, toast } = useApp();
   const hydrated = useHydrated();
   const cart = hydrated ? rawCart : [];
   const router = useRouter();
-  const [form, setForm] = useState({ recipientName: "", phone: "", email: "", city: "", address: "", comment: "", companyName: "", companyInn: "" });
-  const [delivery, setDelivery] = useState<string>("courier");
+  const [form, setForm] = useState({ recipientName: "", phone: "", email: "", city: "", address: "", zip: "", comment: "", companyName: "", companyInn: "" });
+  const [delivery, setDelivery] = useState<string>("ozon");
   const [payment, setPayment] = useState<string>("platega_sbp");
   const [promo, setPromo] = useState<string>("");
   const [priced, setPriced] = useState<Priced | null>(null);
@@ -40,7 +43,8 @@ export function CheckoutView() {
       .then((d) => {
         setSaved(d.items);
         const def = d.items.find((a) => a.isDefault);
-        if (def) setForm((f) => (f.city || f.address ? f : { ...f, city: def.city, address: def.line }));
+        // the saved home address fits Russian Post; for Ozon only the city is reused
+        if (def) setForm((f) => (f.city ? f : { ...f, city: def.city }));
       })
       .catch(() => undefined);
   }, [user]);
@@ -51,8 +55,12 @@ export function CheckoutView() {
     try {
       const p = JSON.parse(sessionStorage.getItem("tm_promo") || "null");
       if (p?.code) setPromo(p.code);
-      const addr = JSON.parse(localStorage.getItem("tm_addr") || "null");
-      if (addr) setForm((f) => ({ ...f, city: addr.city || "", address: addr.address || "" }));
+      const last = JSON.parse(localStorage.getItem("tm_delivery") || "null") as null | { method?: string; city?: string; ozon?: string; post?: string; zip?: string };
+      if (last) {
+        const method = last.method === "post" ? "post" : "ozon";
+        setDelivery(method);
+        setForm((f) => ({ ...f, city: last.city || "", address: (method === "post" ? last.post : last.ozon) || "", zip: last.zip || "" }));
+      }
     } catch {}
     setReady(true);
   }, []);
@@ -81,9 +89,12 @@ export function CheckoutView() {
     e.preventDefault();
     setErr("");
     if (!user && !config.cart.allowGuestCheckout) return openAuth("login", "/checkout");
-    if (delivery !== "pickup" && (!form.city.trim() || !form.address.trim())) {
-      setErr("Укажите город и адрес доставки");
-      toast("Укажите город и адрес доставки", "error");
+    const addrErr = !form.city.trim() || !form.address.trim()
+      ? delivery === "ozon" ? "Укажите город и адрес пункта выдачи Ozon" : "Укажите город и адрес доставки"
+      : delivery === "post" && !/^\d{6}$/.test(form.zip.trim()) ? "Укажите почтовый индекс (6 цифр)" : "";
+    if (addrErr) {
+      setErr(addrErr);
+      toast(addrErr, "error");
       return;
     }
     setBusy(true);
@@ -91,7 +102,10 @@ export function CheckoutView() {
       const r = await api<{ id: string; number: number; redirectUrl: string | null; online: boolean; paymentError?: string }>("/api/orders", {
         body: { ...form, phone: form.phone.replace(/[^\d+]/g, ""), deliveryMethod: delivery, paymentMethod: payment, promoCode: priced?.promoError ? "" : promo, items: cart.map((c) => ({ productId: c.id, qty: c.qty })) },
       });
-      localStorage.setItem("tm_addr", JSON.stringify({ city: form.city, address: form.address }));
+      try {
+        const prev = JSON.parse(localStorage.getItem("tm_delivery") || "{}");
+        localStorage.setItem("tm_delivery", JSON.stringify({ ...prev, method: delivery, city: form.city, [delivery]: form.address, zip: delivery === "post" ? form.zip : prev.zip }));
+      } catch {}
       sessionStorage.removeItem("tm_promo");
       clearCart();
       toast(`Заказ №${r.number} оформлен!`);
@@ -140,40 +154,58 @@ export function CheckoutView() {
               <label className="block"><span className="label">Email</span><input className="input" required type="email" value={form.email} onChange={set("email")} autoComplete="email" /></label>
             </div>
           </Block>
-          <Block n={2} title="Способ доставки">
+          <Block n={2} title="Способ получения">
             <div className="grid gap-2 sm:grid-cols-3">
               {(Object.keys(DELIVERY) as (keyof typeof DELIVERY)[]).filter((k) => config.delivery[k]).map((k) => {
                 const D = DELIVERY[k];
                 const price = deliveryPrice(k);
                 return (
-                  <button type="button" key={k} onClick={() => setDelivery(k)} className={cn("rounded-card border-2 p-3.5 text-left transition", delivery === k ? "border-brand bg-brand-50" : "border-ink-100 hover:border-ink-300")}>
+                  <button type="button" key={k} onClick={() => {
+                    if (k === delivery) return;
+                    let remembered = "";
+                    try {
+                      remembered = (JSON.parse(localStorage.getItem("tm_delivery") || "{}") as Record<string, string>)[k] || "";
+                    } catch {}
+                    setForm((f) => ({ ...f, address: remembered }));
+                    setDelivery(k);
+                  }} className={cn("rounded-card border-2 p-3.5 text-left transition", delivery === k ? "border-brand bg-brand-50" : "border-ink-100 hover:border-ink-300")}>
                     <D.icon size={22} className={delivery === k ? "text-brand" : "text-ink-500"} />
                     <div className="mt-2 font-semibold">{D.label}</div>
-                    <div className="text-xs text-ink-500">{D.hint} · {config.delivery.deliveryDays}</div>
+                    <div className="text-xs text-ink-500">{D.hint} · {String(config.delivery[D.days] ?? "")}</div>
                     <div className="mt-1 text-sm font-bold">{price === undefined ? "…" : price === 0 ? "Бесплатно" : formatPrice(price, config.currency)}</div>
                   </button>
                 );
               })}
             </div>
-            {delivery !== "pickup" && saved.length > 0 && (
+            {delivery === "post" && saved.length > 0 && (
               <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 scrollbar-none sm:mx-0 sm:px-0">
                 {saved.map((a) => {
                   const on = form.city === a.city && form.address === a.line;
                   return (
-                    <button type="button" key={a.id} onClick={() => setForm((f) => ({ ...f, city: a.city, address: a.line }))} className={cn("flex max-w-[260px] shrink-0 items-center gap-2 rounded-xl border-2 px-3 py-2 text-left text-sm", on ? "border-brand bg-brand-50" : "border-ink-100")}>
+                    <button type="button" key={a.id} onClick={() => setForm((f) => ({ ...f, city: a.city, address: a.line, zip: a.zip || f.zip }))} className={cn("flex max-w-[260px] shrink-0 items-center gap-2 rounded-xl border-2 px-3 py-2 text-left text-sm", on ? "border-brand bg-brand-50" : "border-ink-100")}>
                       <MapPin size={16} className="shrink-0 text-brand" /><span className="truncate">{a.city}, {a.line}</span>
                     </button>
                   );
                 })}
               </div>
             )}
-            {delivery !== "pickup" ? (
-              <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_2fr]">
-                <label className="block"><span className="label">Город</span><input className="input" value={form.city} onChange={set("city")} autoComplete="address-level2" placeholder="Москва" /></label>
-                <label className="block"><span className="label">Адрес</span><input className="input" value={form.address} onChange={set("address")} autoComplete="street-address" placeholder="Улица, дом, квартира" /></label>
+            {delivery === "ozon" ? (
+              <div className="mt-3 space-y-3">
+                <div className="grid gap-3 sm:grid-cols-[1fr_2fr]">
+                  <label className="block"><span className="label">Город</span><input className="input" value={form.city} onChange={set("city")} autoComplete="address-level2" placeholder="Москва" /></label>
+                  <label className="block"><span className="label">Адрес пункта выдачи Ozon</span><input className="input" value={form.address} onChange={set("address")} placeholder="Например, ул. Ленина, 10" /></label>
+                </div>
+                <p className="flex items-start gap-2 rounded-xl bg-ink-50 p-3 text-sm text-ink-600">
+                  <MapPin size={16} className="mt-0.5 shrink-0 text-brand" />
+                  <span>Выберите ближайший пункт выдачи на <a href="https://www.ozon.ru/geo/" target="_blank" rel="noopener noreferrer" className="link">карте Ozon</a> и укажите его адрес. Когда заказ придёт, Ozon пришлёт SMS с кодом получения.</span>
+                </p>
               </div>
             ) : (
-              <div className="mt-3 flex items-center gap-2 rounded-xl bg-ink-50 p-3 text-sm"><MapPin size={16} className="text-brand" /> Пункт выдачи: {form.city || "Москва"}, ближайший к вам — мы пришлём адрес в SMS</div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_2fr_140px]">
+                <label className="block"><span className="label">Город / населённый пункт</span><input className="input" value={form.city} onChange={set("city")} autoComplete="address-level2" placeholder="Москва" /></label>
+                <label className="block"><span className="label">Улица, дом, квартира</span><input className="input" value={form.address} onChange={set("address")} autoComplete="street-address" placeholder="ул. Ленина, д. 10, кв. 5" /></label>
+                <label className="block"><span className="label">Индекс</span><input className="input" value={form.zip} onChange={(e) => setForm((f) => ({ ...f, zip: e.target.value.replace(/\D/g, "").slice(0, 6) }))} inputMode="numeric" autoComplete="postal-code" placeholder="101000" /></label>
+              </div>
             )}
           </Block>
           <Block n={3} title="Способ оплаты">
@@ -181,7 +213,7 @@ export function CheckoutView() {
             {config.payments.testMode && methodDef(payment)?.online && (
               <p className="mt-3 flex items-center gap-2 rounded-xl bg-brand-50 p-3 text-xs text-brand"><ShieldCheck size={16} />Платёжная система работает в тестовом режиме: деньги не списываются.</p>
             )}
-            <label className="mt-3 block"><span className="label">Комментарий к заказу</span><textarea className="textarea min-h-[70px]" value={form.comment} onChange={set("comment")} maxLength={1000} placeholder="Например, позвонить за час до доставки" /></label>
+            <label className="mt-3 block"><span className="label">Комментарий к заказу</span><textarea className="textarea min-h-[70px]" value={form.comment} onChange={set("comment")} maxLength={1000} placeholder="Например, удобное время или пожелания к упаковке" /></label>
           </Block>
         </div>
         <aside className="lg:sticky lg:top-32 lg:self-start">

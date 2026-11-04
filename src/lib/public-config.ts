@@ -5,7 +5,7 @@ export type PublicConfig = {
   currency: string;
   registration: { enabled: boolean; showModalOnFirstVisit: boolean; modalDelaySec: number; requirePhone: boolean; phoneVerification: boolean };
   cart: { minOrder: number; maxQtyPerItem: number; allowGuestCheckout: boolean; promoEnabled: boolean };
-  delivery: { courier: boolean; courierPrice: number; pickup: boolean; pickupPrice: number; post: boolean; postPrice: number; freeFrom: number; deliveryDays: string };
+  delivery: { ozon: boolean; ozonPrice: number; ozonDays: string; post: boolean; postPrice: number; postDays: string; freeFrom: number };
   payments: { enabled: string[]; testMode: boolean; kaspiRate: number };
   passwordMinLength: number;
   animations: boolean;

@@ -57,10 +57,10 @@ export async function priceCart(items: { productId: string; qty: number }[], pro
   }
 
   const d = await getGroup<Record<string, number | boolean | string>>("delivery");
-  const methods = (["courier", "pickup", "post"] as const).filter((m) => d[m]);
+  const methods = (["ozon", "post"] as const).filter((m) => d[m]);
   const priceOf = (m: string) => {
     const base = Number(d[m + "Price"] || 0);
-    return subtotal - discount >= Number(d.freeFrom || Infinity) && m !== "post" ? 0 : base;
+    return Number(d.freeFrom) > 0 && subtotal - discount >= Number(d.freeFrom) && m === "ozon" ? 0 : base;
   };
   const deliveryPrice = deliveryMethod && methods.includes(deliveryMethod as never) ? priceOf(deliveryMethod) : 0;
   return {

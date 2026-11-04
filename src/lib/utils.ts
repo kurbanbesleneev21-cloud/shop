@@ -79,9 +79,11 @@ import { PAYMENT_METHODS } from "./payment-methods";
 export const PAYMENT_LABELS: Record<string, string> = Object.fromEntries(PAYMENT_METHODS.map((m) => [m.key, m.label]));
 
 export const DELIVERY_LABELS: Record<string, string> = {
+  ozon: "Пункт выдачи Ozon",
+  post: "Почта России",
+  // old orders placed before Ozon/Post-only delivery
   courier: "Курьером",
   pickup: "Самовывоз из пункта выдачи",
-  post: "Почтой",
 };
 
 export function maskSecret(v?: string | null) {

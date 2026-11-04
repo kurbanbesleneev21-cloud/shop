@@ -123,7 +123,7 @@ export default async function HomePage() {
                 <h2 className="h-section mb-4">{b.title}</h2>
                 <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-5">
                   {[
-                    [Truck, "Доставка от 1 дня", "Курьером, в пункт выдачи или почтой"],
+                    [Truck, "Доставка по всей России", "В пункт выдачи Ozon или Почтой России"],
                     [ShieldCheck, "Гарантия качества", "Только оригинальная техника"],
                     [BadgePercent, "Выгодные цены", "Скидки и промокоды каждый день"],
                     [RotateCcw, "Возврат 14 дней", "Без лишних вопросов"],
